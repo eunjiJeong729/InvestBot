@@ -1,0 +1,26 @@
+# Local development: from repo root
+#   cp docker/.env.example .env
+#   docker compose -f docker/docker-compose.yml up --build
+
+services:
+  investbot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        TARGETPLATFORM: ${DOCKER_PLATFORM:-linux/amd64}
+    platform: ${DOCKER_PLATFORM:-linux/amd64}
+    container_name: InvestBot
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      TZ: Asia/Seoul
+      PYTHONPATH: /app
+      INVESTBOT_SECRETS_DIR: /app/.secrets
+    volumes:
+      - ..:/app
+    working_dir: /app
+    stdin_open: true
+    tty: true
+    restart: "no"

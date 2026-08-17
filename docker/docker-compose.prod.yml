@@ -1,0 +1,15 @@
+# EC2 / production parity build (linux/amd64)
+#   docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up --build
+
+services:
+  investbot:
+    build:
+      args:
+        TARGETPLATFORM: linux/amd64
+    platform: linux/amd64
+    volumes:
+      - ../infra:/app/infra:ro
+      - ../src:/app/src:ro
+      - ../.secrets:/app/.secrets:ro
+      - ../data:/app/data
+    restart: unless-stopped

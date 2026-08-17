@@ -1,0 +1,32 @@
+# data / runtime
+data/
+local_tests/
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# docker / env
+.env
+.DS_Store
+
+# secrets (keep examples)
+.secrets/**
+!.secrets/**/
+!.secrets/**/*.example.json
+
+# airflow (local scheduler / webserver)
+.airflow/
+
+# editor / OS
+.cursor/
+*.swp
+*~
+
+# legacy reference copy
+temp/

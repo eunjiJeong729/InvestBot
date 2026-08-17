@@ -1,0 +1,28 @@
+# Devcontainer 전용 — repo 전체 read-write 마운트 (base compose와 분리)
+# Used by .devcontainer/devcontainer.json
+
+services:
+  investbot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        TARGETPLATFORM: ${DOCKER_PLATFORM:-linux/amd64}
+    platform: ${DOCKER_PLATFORM:-linux/amd64}
+    container_name: InvestBot
+    user: root
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      TZ: Asia/Seoul
+      PYTHONPATH: /app
+      INVESTBOT_SECRETS_DIR: /app/.secrets
+    volumes:
+      - ..:/app
+    working_dir: /app
+    stdin_open: true
+    tty: true
+    restart: "no"
+    entrypoint: []
+    command: sleep infinity

@@ -1,0 +1,6 @@
+{
+  "base_url": "https://api.example-broker.com",
+  "app_key": "your-app-key",
+  "app_secret": "your-app-secret",
+  "account_no": "0000000000"
+}

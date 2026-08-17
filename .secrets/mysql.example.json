@@ -1,0 +1,10 @@
+{
+  "host": "localhost",
+  "port": 3306,
+  "user": "investbot",
+  "password": "changeme",
+  "database": "investbot",
+  "pool_name": "investbot_pool",
+  "pool_size": 5,
+  "charset": "utf8mb4"
+}

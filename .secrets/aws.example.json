@@ -1,0 +1,7 @@
+{
+  "bucket": "investbot-data-lake",
+  "region": "ap-northeast-2",
+  "prefix": "raw",
+  "aws_access_key_id": "AKIA...",
+  "aws_secret_access_key": "..."
+}
