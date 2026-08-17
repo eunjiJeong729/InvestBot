@@ -14,6 +14,8 @@
 | **전략 분석 및 매매** | `dag_trading` | Event-driven | `예정` | 계좌 정보 수집, AI 밴드 분석 및 매수/매도 시그널 주문 집행 |
 | **DW 이관 (S3)** | `dag_dw_migration` | Daily (새벽 1회) | `예정` | Data Quality Gate (PySpark) 검증 후 S3 Bronze 적재 |
 
+👉 자세한 DAG 동작 등 세부 사항은 [docs/dags.md](docs/dags.md)를 참고하세요.
+
 ---
 
 ## 🏗️ 2. 전체 시스템 아키텍처 (Summary)
@@ -45,6 +47,7 @@ Kiwoom API
 
 ```text
 .
+├── .devcontainer/    # VS Code/Cursor Dev Container (Airflow UI 8080 포워딩)
 ├── configs/          # 환경별 런타임 프로파일 (secrets 경로, env, Airflow, target universe)
 ├── .secrets/         # 크리덴셜 (*.example.json 활용)
 ├── docs/             # 설계 문서, 상세 DAG 명세 등
@@ -55,6 +58,7 @@ Kiwoom API
 │   ├── trading/      # [예정] dag_trading 및 분석기/주문 로직
 │   └── dw_migration/ # [예정] dag_dw_migration 및 DQ Gate/S3 이관
 ├── docker/           # Dockerfile, compose, entrypoint
+├── scripts/          # 실행 헬퍼
 └── requirements.txt
 ```
 ---
@@ -74,7 +78,7 @@ Kiwoom API
 - **Decision:** API Client 레벨 지수 백오프 Retry 도입 및 실패 종목 Skip 구조 설계.
 - **Result:** 파이프라인 가용성 극대화 및 연쇄 장애 차단.
 
-👉 문제 원인 및 코드 레벨의 해결 과정은 docs/engineering_decisions.md에서 확인할 수 있습니다.
+👉 문제 원인 및 코드 레벨의 해결 과정은 [docs/engineering_decisions.md](docs/engineering_decisions.md)에서 확인할 수 있습니다.
 
 ---
 ## 🚀 6. 시작하기
