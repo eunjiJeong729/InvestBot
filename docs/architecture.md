@@ -63,7 +63,7 @@ s_market_ohlcv_history (MySQL 48hr Window)
 
 #### 🔹 접두사 (Prefix): 데이터 성격 및 역할
 * **`d_` (Dimension - 기준 정보)**: 변경 주기가 길고 분석/조회의 기준이 되는 마스터 데이터
-  * *예시*: `d_market_asset_master` (종목 마스터)
+  * *예시*: `d_market_asset_master` (종목 마스터), `d_market_calendar` (거래일 캘린더)
 * **`s_` (Stage / Source - 원천 로그)**: 외부 API나 시스템 내부 이벤트에서 발생한 원천 데이터
   * *예시*: `s_market_ohlcv` (시세 Staging), `s_trading_signal` (주문 시그널)
 * **`f_` (Fact - 집계/가공 데이터)**: 비즈니스 로직 연산을 거쳐 가공된 핵심 지표 데이터
