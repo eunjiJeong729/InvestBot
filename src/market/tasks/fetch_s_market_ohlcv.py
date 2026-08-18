@@ -8,6 +8,8 @@ from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
+import pendulum
+
 from infra.db.rdbms.mysql import MySQLClient
 from src.common.entity import DMarketAssetMaster, SMarketOhlcv
 from src.common.utils.config import load_market_settings, load_mysql_config
@@ -42,7 +44,7 @@ def resolve_schedule_slot_kst(context: object | None = None) -> datetime:
         if isinstance(raw, datetime):
             slot_dt = raw.replace(tzinfo=ZoneInfo("UTC")) if raw.tzinfo is None else raw
             return (
-                slot_dt.astimezone(market.timezone)
+                pendulum.instance(slot_dt).in_timezone(market.timezone)
                 + timedelta(minutes=market.schedule_step_minutes)
             ).replace(second=0, microsecond=0)
 
