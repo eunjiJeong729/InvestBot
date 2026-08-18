@@ -80,14 +80,36 @@
 ---
 ## 5. 1분봉 대신 5분 집계봉 채택 및 결측 처리 기준
 
-* **Context & Constraints**
+* **Context & Constraints (배경 및 제약 조건)**
   * 1분봉은 노이즈가 많아 후속 분석(AI 밴드 분석 등) 모델 성능에 불리함.
   * 5분 구간 내 일부 1분봉이 존재하지 않는 종목(저유동성)이 발생.
 
-* **Engineering Decision & Trade-off**
+* **Engineering Decision & Trade-off (의사결정 및 트레이드오프)**
   * Kiwoom에서 받은 1분봉을 5분 구간 단위로 집계(open=구간 첫값, high/low=구간 극값, close=구간 마지막값, volume=합산)하여 노이즈를 줄인 정제 데이터로 적재.
   * "5분 평균봉"이 아닌 "체결 발생분만으로 구성된 압축 구간"이므로, 구간 내 일부 1분봉이 없어도 존재하는 값만으로 집계하고 별도 보정 없이 진행.
 
-* **Impact & Reliability**
+* **Impact & Reliability (성과 및 시스템 안정성)**
   * 노이즈가 완화된 5분봉으로 후속 분석 모델의 입력 품질 향상.
   * 저유동성 종목의 결측 1분봉으로 인한 불필요한 수집 실패/skip 없이 안정적으로 데이터 적재.
+
+---
+## 6. pendulum 객체에 stdlib ZoneInfo를 혼용하여 발생한 게이트 슬롯 오판
+
+* **Context & Constraints (배경 및 제약 조건)**
+  * `dag_market`의 게이트가 `outside_asset_master_window`로 판정하며 `fetch_d_market_asset_master`를 연속으로 skip, 실제 종목 마스터 갱신이 누락됨.
+  * 원인 추적 결과 Airflow `logical_date`(`pendulum.DateTime`)를 KST로 변환하는 슬롯 계산 로직이 실제 시각과 다른 값을 산출하고 있었음.
+
+* **Engineering Decision & Trade-off (의사결정 및 트레이드오프)**
+  * 최초에는 `astimezone()` 호출 자체가 오프셋을 반영하지 않는 것으로 판단하여 `.timestamp()`를 경유해 stdlib `datetime`으로 완전히 바꿔치기하는
+    워크어라운드(`to_aware_utc()`)를 공용 유틸(`src/common/utils/util.py`)로 도입 검토.
+  * 재현 스크립트로 재검증한 결과 실제 원인이 다르다는 것을 확인: `astimezone()` 단독 호출 결과값은 정상으로 보였지만 pendulum 객체가 외부(stdlib) tzinfo를 빌려 쓴 상태라 내부적으로 불안정했고 그 결과에 `+ timedelta(...)`를 체이닝하는 시점에만 tzinfo가 소실되는 결함이었음.
+  * 또한 `to_aware_utc()`를 공용 유틸로 배치하려던 최초 결정도 실제 소비처가 market 도메인 파일 두 곳(`dag_market.py`, `fetch_s_market_ohlcv.py`)뿐이라 프로젝트에서 이미 세워둔 "재사용 근거 없는 공용 유틸 추출 금지(YAGNI)" 원칙에 위배된다고 생각하고 재검토함.
+  * 최종적으로 원인을 pendulum 자체 API(`in_timezone()`)로 해결하면서 워크어라운드 함수 자체가 불필요해져 원칙 위배도 자연 해소됨.
+
+* **Technical Solution (기술적 해결책)**
+  1. `raw.astimezone(ZoneInfo(...)) + timedelta(...)` → `pendulum.instance(raw).in_timezone(...) + timedelta(...)`로 전환.
+     `in_timezone()`은 pendulum 자체 타임존 표현을 사용하므로 이후 `timedelta` 연산을 이어붙여도 tzinfo가 안정적으로 유지됨.
+  2. `raw`가 naive datetime으로 들어오는 경로에 대한 방어 추가: naive는 UTC로 명시적으로 tzinfo를 붙인 뒤(`slot_dt`) `pendulum.instance(slot_dt)` 로 변환. (`pendulum`가 naive를 로컬 시스템 타임존으로 오인할 수 있어 명시적 UTC 부착)
+
+* **Impact & Reliability (성과 및 시스템 안정성)**
+  * 별도 워크어라운드 유틸 없이 원인을 구조적으로 제거하여 코드 복잡도 증가 없이 해결.

@@ -6,6 +6,8 @@ import os
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
+import pendulum
+
 from airflow import DAG
 from airflow.operators.python import PythonOperator, ShortCircuitOperator
 
@@ -55,9 +57,11 @@ def _slot_from_context(context: object) -> tuple[datetime, time] | None:
     if not isinstance(raw, datetime):
         return None
 
+    # naive는 UTC로 간주한다. pendulum.DateTime.astimezone(ZoneInfo) 후 timedelta를
+    # 더하면 tz가 사라지므로 pendulum.instance로 맞춘 뒤 in_timezone만 사용한다.
     slot_dt = raw.replace(tzinfo=ZoneInfo("UTC")) if raw.tzinfo is None else raw
     slot_kst = (
-        slot_dt.astimezone(_MARKET_TZ) + timedelta(minutes=_SCHEDULE_STEP_MINUTES)
+        pendulum.instance(slot_dt).in_timezone(_MARKET_TZ) + timedelta(minutes=_SCHEDULE_STEP_MINUTES)
     ).replace(second=0, microsecond=0)
     slot_time = slot_kst.time().replace(second=0, microsecond=0)
     return slot_kst, slot_time
