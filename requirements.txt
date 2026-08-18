@@ -5,6 +5,9 @@ requests>=2.31.0
 # Database
 mysql-connector-python>=9.0.0,<10
 
+# Market calendar
+exchange_calendars>=4.13.2,<5
+
 # Data Lake
 boto3>=1.34.0,<2
 

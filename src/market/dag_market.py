@@ -15,6 +15,7 @@ from infra.db.rdbms.mysql import MySQLClient
 from src.common.entity import DMarketAssetMaster
 from src.common.utils.config import init_runtime_config, load_market_settings, load_mysql_config
 from src.common.utils.task_log import log_gate_decision
+from src.market.tasks._market_calendar import fetch_is_market_open
 from src.market.tasks.fetch_d_market_asset_master import run as fetch_d_market_asset_master
 from src.market.tasks.fetch_s_market_ohlcv import run as fetch_s_market_ohlcv
 from src.market.tasks.insert_s_market_ohlcv_history import run as insert_s_market_ohlcv_history
@@ -78,10 +79,40 @@ def _asset_master_last_updated() -> datetime | None:
     return value if isinstance(value, datetime) else None
 
 
+def _reject_non_trading_day(gate_name: str, slot_kst: datetime) -> bool:
+    """``d_market_calendar`` 기준 비거래일이면 skip 로그를 남기고 True를 반환한다.
+
+    주말·공휴일·연말 폐장을 ``not_a_trading_day``로 통일한다.
+    캘린더 행이 없으면 ``missing_calendar_row`` (재적재 필요).
+    """
+    market_date = slot_kst.date()
+    is_open = fetch_is_market_open(market_date)
+    if is_open is None:
+        log_gate_decision(
+            gate_name,
+            allowed=False,
+            reason="missing_calendar_row",
+            logical_date=str(slot_kst),
+            market_date=str(market_date),
+        )
+        return True
+    if not is_open:
+        log_gate_decision(
+            gate_name,
+            allowed=False,
+            reason="not_a_trading_day",
+            logical_date=str(slot_kst),
+            market_date=str(market_date),
+        )
+        return True
+    return False
+
+
 def should_run_asset_master(**context: object) -> bool:
     """gate_fetch_d_market_asset_master — 종목 마스터 수집 여부.
 
     | 슬롯 (KST) | 동작 |
+    | 비거래일 | skip (``d_market_calendar.is_market_open=0``) |
     | 08:10 | 정규 실행 (항상) |
     | 08:15~08:55 | 당일 미갱신 시에만 재시도 |
     | 그 외 | skip |
@@ -102,14 +133,7 @@ def should_run_asset_master(**context: object) -> bool:
 
     slot_kst, slot_time = slot
 
-    # 평일(월~금)만 실행
-    if slot_kst.weekday() >= 5:
-        log_gate_decision(
-            "gate_fetch_d_market_asset_master",
-            allowed=False,
-            reason="weekend",
-            logical_date=str(slot_kst),
-        )
+    if _reject_non_trading_day("gate_fetch_d_market_asset_master", slot_kst):
         return False
 
     # 당일 00:00 이후 갱신됐는지 확인
@@ -145,9 +169,10 @@ def should_run_market_ohlcv(**context: object) -> bool:
     """gate_market_window — OHLCV 수집 시간대 여부.
 
     | 조건 | 동작 |
-    | 평일 09:00~15:30 | 허용 |
+    | 비거래일 | skip (``d_market_calendar``) |
+    | 거래일 09:00~15:30 | 허용 |
     | 15:21~15:29 | skip (동호가 구간, 신규 5분봉 없음) |
-    | 주말 / 장외 | skip |
+    | 장외 | skip |
 
     log_gate_decision: skip/허용 이유를 Airflow task 로그에 기록.
     """
@@ -163,13 +188,7 @@ def should_run_market_ohlcv(**context: object) -> bool:
 
     slot_kst, slot_time = slot
 
-    if slot_kst.weekday() >= 5:
-        log_gate_decision(
-            "gate_market_window",
-            allowed=False,
-            reason="weekend",
-            logical_date=str(slot_kst),
-        )
+    if _reject_non_trading_day("gate_market_window", slot_kst):
         return False
 
     if not (_OHLCV_START <= slot_time <= _OHLCV_END):

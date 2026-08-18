@@ -113,3 +113,36 @@
 
 * **Impact & Reliability (성과 및 시스템 안정성)**
   * 별도 워크어라운드 유틸 없이 원인을 구조적으로 제거하여 코드 복잡도 증가 없이 해결.
+
+---
+
+## 7. 거래일 판단 방식 전환: `weekday()` 체크에서 `d_market_calendar` 스냅샷 기반으로
+
+* **Context & Constraints (배경 및 제약 조건)**
+  * 게이트가 `slot_kst.weekday() >= 5`로 주말만 걸렀고, 법정 공휴일·대체공휴일·
+    KRX 연말 폐장(12/31)은 걸러내지 못해 휴장일에도 fetch task가 정상 실행을
+    시도함.
+
+* **Engineering Decision & Trade-off (의사결정 및 트레이드오프)**
+  * `exchange_calendars`(XKRX 캘린더)로 거래일 여부·개장 시각을 계산해
+    `d_market_calendar`에 스냅샷 적재하고 게이트는 이 테이블만 조회하도록 전환.
+  * 적재 주기(연 1회, 불규칙한 임시공휴일 발표 대응)가 `dag_market`의 5분
+    스케줄과 맞지 않아 Airflow DAG으로 만들지 않고 `scripts/`의 수동 CLI로
+    분리. 반복 스케줄링·재시도 오케스트레이션이 필요 없는 관리성 작업에
+    Airflow를 쓰는 건 과함(YAGNI)으로 판단.
+  * 적재 범위를 "올해"가 아닌 작년~내후년(4개년)으로 잡아서 연말/연초 경계에서
+    다음 연도 데이터가 없어 게이트가 잘못 판단하는 엣지케이스를 사전 차단.
+
+* **Technical Solution (기술적 해결책)**
+  1. `build_calendar_rows()`가 XKRX 세션을 날짜별로 계산해
+     `(market_date, is_market_open, market_open_time)` row 생성.
+  2. 기존 `db_snapshot.replace_snapshot()`을 재사용해 TRUNCATE+INSERT (신규
+     유틸 없이 재사용 근거 있는 기존 함수만 사용).
+  3. 게이트의 `weekday() >= 5`를 `_reject_non_trading_day()`로 교체, 주말·
+     공휴일·연말폐장을 `not_a_trading_day` 하나로 통합 판단. 캘린더 행 누락은
+     `missing_calendar_row`로 별도 식별해 재적재 필요 신호로 활용.
+
+* **Impact & Reliability (성과 및 시스템 안정성)**
+  * 공휴일·대체공휴일·연말 폐장에도 fetch task가 실행 시도되던 문제 제거.
+  * 별도 오케스트레이션 없이 결정론적 데이터를 스냅샷으로만 관리해 히스토리
+    적재 부담 없이 최소 구성 유지.

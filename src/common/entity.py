@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Any, ClassVar, Literal
 
 EntityType = Literal["account", "asset", "sector", "index", "theme", "ohlcv"]
@@ -111,6 +111,19 @@ class DMarketAssetMaster:
     asset_name: str
     is_tradable: int = 1
     is_target: int = 0
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+@dataclass
+class DMarketCalendar:
+    """Dimension: ``d_market_calendar`` (XKRX 거래일 스냅샷)."""
+
+    TABLE: ClassVar[str] = "d_market_calendar"
+
+    market_date: date
+    is_market_open: int
+    market_open_time: time | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
