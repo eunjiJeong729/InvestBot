@@ -14,8 +14,8 @@ from src.common.utils.db_partition import (
 )
 from src.common.utils.sql_loader import format_sql
 from src.common.utils.task_log import log_task_run
+from src.market.tasks import Task
 
-_TASK = "insert_s_market_ohlcv_history"
 _SERVICE = "market"
 _UPSERT_SQL_NAME = "insert_s_market_ohlcv_history"
 
@@ -77,53 +77,57 @@ def ensure_history_partitions(db: MySQLClient, conn: object, logger: object) -> 
     return added
 
 
-def run() -> int:
-    """s_market_ohlcv 스냅샷 행을 s_market_ohlcv_history에 UPSERT한다."""
-    with log_task_run(_TASK) as logger:
-        db = MySQLClient(load_mysql_config())
-        conn = db.connection()
-        try:
-            snapshot_count = db.fetchone(
-                f"SELECT COUNT(*) AS c FROM {SMarketOhlcv.TABLE}",
-                conn=conn,
-            )
-            logger.info("snapshot rows in %s=%s", SMarketOhlcv.TABLE, snapshot_count.get("c"))
+class InsertSMarketOhlcvHistory(Task):
+    def __init__(self) -> None:
+        super().__init__("insert_s_market_ohlcv_history")
 
-            added_partitions = ensure_history_partitions(db, conn, logger)
-            if not added_partitions:
-                logger.info("partitions already exist for snapshot dates")
+    def run(self, **context: object) -> int:
+        """s_market_ohlcv 스냅샷 행을 s_market_ohlcv_history에 UPSERT한다."""
+        with log_task_run(self.name) as logger:
+            db = MySQLClient(load_mysql_config())
+            conn = db.connection()
+            try:
+                snapshot_count = db.fetchone(
+                    f"SELECT COUNT(*) AS c FROM {SMarketOhlcv.TABLE}",
+                    conn=conn,
+                )
+                logger.info("snapshot rows in %s=%s", SMarketOhlcv.TABLE, snapshot_count.get("c"))
 
-            hist = SMarketOhlcvHistory.TABLE
-            staging = SMarketOhlcv.TABLE
-            unchanged = f"""
-                {hist}.open_price <=> VALUES(open_price)
-                AND {hist}.high_price <=> VALUES(high_price)
-                AND {hist}.low_price <=> VALUES(low_price)
-                AND {hist}.close_price <=> VALUES(close_price)
-                AND {hist}.volume <=> VALUES(volume)
-            """
-            rows = db.execute(
-                format_sql(
-                    _SERVICE,
-                    _UPSERT_SQL_NAME,
-                    hist=hist,
-                    staging=staging,
-                    unchanged=unchanged,
-                ),
-                conn=conn,
-            )
-            affected = int(rows.rowcount or 0)
-            db.commit(conn)
-            logger.info(
-                "upserted history affected_rows=%d table=%s partitions_added=%d "
-                "(rowcount 1=insert, 2=update)",
-                affected,
-                SMarketOhlcvHistory.TABLE,
-                len(added_partitions),
-            )
-            return affected
-        except Exception:
-            db.rollback(conn)
-            raise
-        finally:
-            conn.close()
+                added_partitions = ensure_history_partitions(db, conn, logger)
+                if not added_partitions:
+                    logger.info("partitions already exist for snapshot dates")
+
+                hist = SMarketOhlcvHistory.TABLE
+                staging = SMarketOhlcv.TABLE
+                unchanged = f"""
+                    {hist}.open_price <=> VALUES(open_price)
+                    AND {hist}.high_price <=> VALUES(high_price)
+                    AND {hist}.low_price <=> VALUES(low_price)
+                    AND {hist}.close_price <=> VALUES(close_price)
+                    AND {hist}.volume <=> VALUES(volume)
+                """
+                rows = db.execute(
+                    format_sql(
+                        _SERVICE,
+                        _UPSERT_SQL_NAME,
+                        hist=hist,
+                        staging=staging,
+                        unchanged=unchanged,
+                    ),
+                    conn=conn,
+                )
+                affected = int(rows.rowcount or 0)
+                db.commit(conn)
+                logger.info(
+                    "upserted history affected_rows=%d table=%s partitions_added=%d "
+                    "(rowcount 1=insert, 2=update)",
+                    affected,
+                    SMarketOhlcvHistory.TABLE,
+                    len(added_partitions),
+                )
+                return affected
+            except Exception:
+                db.rollback(conn)
+                raise
+            finally:
+                conn.close()

@@ -1,8 +1,10 @@
 # 📈 InvestBot
 
-> **Kiwoom API 기반의 실시간 마켓 데이터 수집, 트레이딩 전략 수행 및 S3 Data Lakehouse 이관을 담당하는 Airflow 기반 데이터 파이프라인입니다.**
+> **Kiwoom API 기반의 준실시간(Near-Real-Time) 마켓 데이터 수집, 트레이딩 전략 수행 및 S3 Data Lakehouse 이관을 담당하는 Airflow 기반 데이터 파이프라인입니다.**
 > 
 > 금융 API 제약과 네트워크 불확실성 환경에서도 데이터 누락 없이 자가 복구가 가능하도록 **Dynamic Sliding Window**와 **UPSERT 기반의 멱등성 파이프라인**을 설계하고 구현했습니다.
+>
+> 테이블 네이밍 컨벤션, DAG/Task 구조, 메달리온 계층 설계까지 처음부터 직접 정의했습니다.
 
 ---
 
@@ -10,7 +12,7 @@
 
 | 서비스 도메인 | 대표 DAG ID | 스케줄 주기 | 현재 상태 | 주요 역할 |
 | :--- | :--- | :--- | :---: | :--- |
-| **마켓 데이터 공급** | `dag_market` | `평일 08:00~15:55 KST (5분 슬롯) | **`완료`** | Kiwoom API 종목 마스터 갱신 및 5분봉 OHLCV 수집/이력 적재 |
+| **마켓 데이터 공급** | `dag_market` | 평일 08:00~15:55 KST (5분 슬롯) | **`완료`** | Kiwoom API 종목 마스터 갱신 및 5분봉 OHLCV 수집/이력 적재 |
 | **전략 분석 및 매매** | `dag_trading` | Event-driven | `예정` | 계좌 정보 수집, AI 밴드 분석 및 매수/매도 시그널 주문 집행 |
 | **DW 이관 (S3)** | `dag_dw_migration` | Daily (새벽 1회) | `예정` | Data Quality Gate (PySpark) 검증 후 S3 Bronze 적재 |
 
@@ -53,7 +55,7 @@ Kiwoom API
 ├── docs/             # 설계 문서, 상세 DAG 명세 등
 ├── infra/            # HTTP, MySQL, S3 등 공통 인프라 클라이언트
 ├── src/
-│   ├── common/       # entity, config, logging 유틸
+│   ├── common/       # entity, config, logging, 공통 API client(Kiwoom 등) 유틸
 │   ├── market/       # [완료] dag_market 및 fetch/insert task
 │   ├── trading/      # [예정] dag_trading 및 분석기/주문 로직
 │   └── dw_migration/ # [예정] dag_dw_migration 및 DQ Gate/S3 이관
@@ -68,20 +70,31 @@ Kiwoom API
 - 🔄 DAG별 세부 명세 및 Gate 정책
 ---
 ## ⚡ 5. 핵심 엔지니어링 의사결정 & 시스템 최적화 (Key Engineering Decisions)
+
 ### 1. API Rate Limit과 Airflow 지연 간의 연쇄 병목 차단
 - **Problem & Constraint:** 초당 1회 Call Limit 제약 하에서 Airflow 지연 발생 시 연쇄 병목 발생.
 - **Decision:** Catchup 순차 실행 대신 Dynamic Sliding Window(최신 30분) + UPSERT 기법 채택.
 - **Result:** 정시 실행률 확보 및 과거 갭 데이터 자가 복구 구현.
 
-### 2. 단일 종목 Timeout 시 전체 배치 중단 방지
-- **Problem & Constraint:** 200개 종목 수집 중 1개 Read Timeout 시 전체 Task Failure 발생.
-- **Decision:** API Client 레벨 지수 백오프 Retry 도입 및 실패 종목 Skip 구조 설계.
-- **Result:** 파이프라인 가용성 극대화 및 연쇄 장애 차단.
+### 2. 1분봉 대신 5분 집계봉 채택 및 결측 처리 기준
+- **Problem & Constraint:** 1분봉은 노이즈가 많아 후속 AI 밴드 분석 모델 성능에 불리. 저유동성 종목은
+  5분 구간 내 일부 1분봉이 존재하지 않는 경우 발생.
+- **Decision:** 1분봉을 5분 구간 단위로 집계(open/high/low/close/volume)하되, "5분 평균봉"이 아닌
+  "체결 발생분만으로 구성된 압축 구간"으로 정의해 결측 1분봉에 대한 별도 보정 없이 존재하는 값만으로 집계.
+- **Result:** 노이즈 완화로 분석 모델 입력 품질 향상, 결측으로 인한 불필요한 수집 실패/skip 없이 안정 적재.
+
+### 3. 서비스 확장을 고려한 모듈 분리 기준 수립
+- **Problem & Constraint:** 후속 서비스(`dag_trading`, `dag_dw_migration`) 추가를 앞두고, 재사용을
+  근거 없이 앞당겨 추상화할지 vs task별로 완전히 독립시킬지의 트레이드오프 존재.
+- **Decision:** Task 경계는 "부분 실패 시 함께 재시도되어야 하는 범위"로, 코드 재사용은
+  "실제 재사용 근거가 있는가"로 별도 기준을 세워 분리 (YAGNI 원칙).
+- **Result:** 재사용 근거가 확인된 로직만 선별적으로 공통화해 실질적 코드 중복 감소, 근거 없는 부분은
+  추상화를 보류해 후속 서비스 요구사항 확정 전 잘못된 추상화를 만들었다가 되돌리는 재작업 비용 방지.
 
 👉 문제 원인 및 코드 레벨의 해결 과정은 [docs/engineering_decisions.md](docs/engineering_decisions.md)에서 확인할 수 있습니다.
 
 ---
-## 🚀 6. 시작하기
+## 🚀 6. 시작하기 <sub>(직접 실행해보고 싶은 분만)</sub>
 ### 사전 요구사항
 
 - Docker (Dev Container 사용 시)

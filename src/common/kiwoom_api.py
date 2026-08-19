@@ -1,4 +1,4 @@
-"""마켓 적재 태스크용 키움 API 헬퍼."""
+"""공용 Kiwoom REST API helper."""
 
 from __future__ import annotations
 
@@ -86,7 +86,7 @@ class KiwoomCredentials:
 
 
 class KiwoomApi:
-    """마켓 DAG 태스크에서 쓰는 최소 키움 REST API 래퍼."""
+    """레포 전역에서 재사용하는 Kiwoom REST API 래퍼."""
 
     def __init__(self, creds: KiwoomCredentials) -> None:
         self._http = RestClient(base_url=creds.base_url, timeout=creds.timeout)
@@ -284,4 +284,3 @@ def parse_number(row: dict[str, Any], *keys: str) -> float:
         if value is not None:
             return value
     raise ValueError(f"Missing numeric keys: {keys}")
-

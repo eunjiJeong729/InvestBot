@@ -146,3 +146,25 @@
   * 공휴일·대체공휴일·연말 폐장에도 fetch task가 실행 시도되던 문제 제거.
   * 별도 오케스트레이션 없이 결정론적 데이터를 스냅샷으로만 관리해 히스토리
     적재 부담 없이 최소 구성 유지.
+    
+---
+## 8. Task Class 전환에 따른 모듈 조직 및 네이밍 원칙 재정립
+
+* **Context & Constraints (배경 및 제약 조건)**
+  * Airflow task를 함수형에서 ABC 기반 클래스(`Task`)로 전환하면서 `tasks/` 하위에 흩어져 있던 helper 모듈(`_ohlcv_aggregation.py`, `_kiwoom_api.py`, `_market_calendar.py`)의 위치와 존재 이유를 재검토할 필요가 발생.
+  * 4번 항목("서비스 확장을 고려한 모듈 분리 기준")에서 세운 "재사용 근거 없는 분리 금지" 원칙과 별도로 남아 있던 "테스트 용이성을 위한 aggregation 로직 분리" pending 항목이 서로 충돌.
+
+* **Engineering Decision & Trade-off (의사결정 및 트레이드오프)**
+  1. **Task-local 로직 병합 우선**: 소비처가 단일 task 파일 하나뿐인 로직은 별도 파일로 분리하지 않고 해당 task 파일 내부로 병합한다. 분리는 "실제 재사용 근거"가 생긴 시점에만 수행한다. 테스트 용이성만으로는 분리 근거가 되지 않는다 — 이는 4번 항목 원칙의 연장이며 기존에 세워뒀던 "테스트 용이성을 위한 aggregation 분리" pending 항목은 폐기한다.
+  2. **재사용 근거의 범위 확장**: "확인된 재사용 근거"는 실제 호출 코드가 존재하는 경우뿐 아니라, `architecture.md`에 설계상 확정된 향후 소비처도 포함한다. Kiwoom API 클라이언트는 `dag_trading`(계좌 조회, 주문 집행)에서 사용이 architecture.md Step 2/5에 이미 문서화되어 있으므로 `dag_market` 구현 완료 시점에 공통 모듈로 격상 가능. 단, 이 확장은 막연한 예상 재사용까지 허용하지 않는다.
+  3. **common vs infra 위치**: 소비처가 `src/` 내부로 한정되는 한 `common/`과 `infra/`의 구분은 실익이 없어 강제하지 않는다. 단, 향후 `src/` 밖(예: 별도 배치 스크립트, 다른 레포)에서 소비하는 모듈이 생기면 그때 `infra/`(외부 API/DB 클라이언트) vs `common/`(entity, config, logging 등 도메인 무관 유틸)의 기존 구분을 따른다.
+
+* **Technical Solution (기술적 해결책)**
+  1. `_ohlcv_aggregation.py`의 순수 함수들을 `fetch_s_market_ohlcv.py`로 병합 (유일 소비처).
+  2. `_kiwoom_api.py` → `src/common/kiwoom_api.py`로 격상 (`dag_trading`의 확정된 미래 소비 근거).
+  3. `_market_calendar.py`의 적재 로직은 `scripts/load_d_market_calendar.py`로 병합(수동 CLI 스크립트가 유일 소비처), 조회 로직(`_is_market_open`)은 `dag_market.py` 내부 게이트 헬퍼로 이동.
+  4. 함수 기반 -> 클래스 패턴으로 통일.
+
+* **Impact & Reliability (성과 및 시스템 안정성)**
+  * Task 클래스 전환과 무관하게 "재사용 근거 기반 분리" 원칙이 일관되게 유지됨을 재확인.
+  * 설계 판단 기준 재확립.

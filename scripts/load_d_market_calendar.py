@@ -10,10 +10,83 @@ from __future__ import annotations
 
 import argparse
 import sys
-from datetime import date
+from datetime import date, datetime, time, timedelta
+from typing import Any
 
+from infra.db.rdbms.mysql import MySQLClient
+from src.common.entity import DMarketCalendar
 from src.common.utils.config import init_runtime_config
-from src.market.tasks._market_calendar import load_market_calendar, year_range
+from src.common.utils.db_snapshot import replace_snapshot
+
+_CALENDAR_CODE = "XKRX"
+_OPEN_TZ = "Asia/Seoul"
+_SNAPSHOT_COLUMNS = (
+    "market_date",
+    "is_market_open",
+    "market_open_time",
+    "created_at",
+    "updated_at",
+)
+
+
+def year_range(*, today: date, years_back: int, years_forward: int) -> tuple[date, date]:
+    """적재 구간: ``today.year - years_back`` 1/1 ~ ``today.year + years_forward`` 12/31."""
+    if years_back < 0 or years_forward < 0:
+        raise ValueError("years_back and years_forward must be >= 0")
+    start = date(today.year - years_back, 1, 1)
+    end = date(today.year + years_forward, 12, 31)
+    return start, end
+
+
+def build_calendar_rows(*, start: date, end: date) -> list[tuple[date, int, time | None]]:
+    """XKRX 세션을 ``start``~``end`` 날짜 전부에 대해 row로 만든다."""
+    if end < start:
+        raise ValueError("end must be >= start")
+
+    import exchange_calendars as xcals
+
+    calendar = xcals.get_calendar(_CALENDAR_CODE, start=start, end=end)
+    first_session = calendar.first_session.date()
+    last_session = calendar.last_session.date()
+    rows: list[tuple[date, int, time | None]] = []
+    day = start
+    one_day = timedelta(days=1)
+    while day <= end:
+        is_open = first_session <= day <= last_session and bool(calendar.is_session(day))
+        open_time: time | None = None
+        if is_open:
+            opened_at = calendar.session_open(day).tz_convert(_OPEN_TZ)
+            open_time = time(opened_at.hour, opened_at.minute, opened_at.second)
+        rows.append((day, 1 if is_open else 0, open_time))
+        day += one_day
+    return rows
+
+
+def load_market_calendar(*, start: date, end: date) -> dict[str, Any]:
+    """계산한 캘린더를 ``replace_snapshot``으로 적재한다."""
+    from src.common.utils.config import load_mysql_config
+
+    db = MySQLClient(load_mysql_config())
+    now = datetime.now()
+    rows = [
+        (market_date, is_open, open_time, now, now)
+        for market_date, is_open, open_time in build_calendar_rows(start=start, end=end)
+    ]
+    replace_snapshot(
+        db,
+        table=DMarketCalendar.TABLE,
+        columns=_SNAPSHOT_COLUMNS,
+        rows=rows,
+    )
+    open_days = sum(flag for _, flag, _, _, _ in rows)
+    return {
+        "table": DMarketCalendar.TABLE,
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "rows": len(rows),
+        "open_days": open_days,
+        "closed_days": len(rows) - open_days,
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
