@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 import pendulum
@@ -15,10 +15,9 @@ from infra.db.rdbms.mysql import MySQLClient
 from src.common.entity import DMarketAssetMaster
 from src.common.utils.config import init_runtime_config, load_market_settings, load_mysql_config
 from src.common.utils.task_log import log_gate_decision
-from src.market.tasks._market_calendar import fetch_is_market_open
-from src.market.tasks.fetch_d_market_asset_master import run as fetch_d_market_asset_master
-from src.market.tasks.fetch_s_market_ohlcv import run as fetch_s_market_ohlcv
-from src.market.tasks.insert_s_market_ohlcv_history import run as insert_s_market_ohlcv_history
+from src.market.tasks.fetch_d_market_asset_master import FetchDMarketAssetMaster
+from src.market.tasks.fetch_s_market_ohlcv import FetchSMarketOhlcv
+from src.market.tasks.insert_s_market_ohlcv_history import InsertSMarketOhlcvHistory
 
 # DAG import 시점에 런타임 config를 env에 반영한다 (INVESTBOT_CONFIG 필수).
 _CONFIG_PATH = os.environ.get("INVESTBOT_CONFIG", "").strip()
@@ -79,6 +78,21 @@ def _asset_master_last_updated() -> datetime | None:
     return value if isinstance(value, datetime) else None
 
 
+def _is_market_open(market_date: date) -> bool | None:
+    """``d_market_calendar``의 당일 개장 여부. 행이 없으면 ``None``."""
+    row = MySQLClient(load_mysql_config()).fetchone(
+        """
+        SELECT is_market_open
+        FROM d_market_calendar
+        WHERE market_date = %s
+        """,
+        (market_date,),
+    )
+    if row is None:
+        return None
+    return bool(row.get("is_market_open"))
+
+
 def _reject_non_trading_day(gate_name: str, slot_kst: datetime) -> bool:
     """``d_market_calendar`` 기준 비거래일이면 skip 로그를 남기고 True를 반환한다.
 
@@ -86,7 +100,7 @@ def _reject_non_trading_day(gate_name: str, slot_kst: datetime) -> bool:
     캘린더 행이 없으면 ``missing_calendar_row`` (재적재 필요).
     """
     market_date = slot_kst.date()
-    is_open = fetch_is_market_open(market_date)
+    is_open = _is_market_open(market_date)
     if is_open is None:
         log_gate_decision(
             gate_name,
@@ -292,13 +306,17 @@ with DAG(
     catchup=False,  # 과거 run 일괄 backfill 비활성 — sliding window로 갭 보완
     tags=["market"],
 ) as dag:
+    fetch_d_market_asset_master = FetchDMarketAssetMaster()
+    fetch_s_market_ohlcv = FetchSMarketOhlcv()
+    insert_s_market_ohlcv_history = InsertSMarketOhlcvHistory()
+
     gate_fetch_d_market_asset_master = ShortCircuitOperator(
         task_id="gate_fetch_d_market_asset_master",
         python_callable=should_run_asset_master,
     )
     fetch_d_market_asset_master_task = PythonOperator(
         task_id="fetch_d_market_asset_master",
-        python_callable=fetch_d_market_asset_master,
+        python_callable=fetch_d_market_asset_master.run,
     )
 
     gate_market_window = ShortCircuitOperator(
@@ -311,11 +329,11 @@ with DAG(
     )
     fetch_s_market_ohlcv_task = PythonOperator(
         task_id="fetch_s_market_ohlcv",
-        python_callable=fetch_s_market_ohlcv,
+        python_callable=fetch_s_market_ohlcv.run,
     )
     insert_s_market_ohlcv_history_task = PythonOperator(
         task_id="insert_s_market_ohlcv_history",
-        python_callable=insert_s_market_ohlcv_history,
+        python_callable=insert_s_market_ohlcv_history.run,
     )
 
     gate_fetch_d_market_asset_master >> fetch_d_market_asset_master_task

@@ -59,6 +59,8 @@ s_market_ohlcv_history (MySQL 48hr Window)
 
 ## 🏷️ 4. 데이터 네이밍 컨벤션 (Naming Conventions)
 
+> 아래 접두사/접미사 체계는 Kimball 방법론의 Dimension/Fact/Staging 개념을 참고하여, 본 프로젝트의 서비스 구조(마켓 데이터 수집·트레이딩·DW 이관)에 맞게 직접 설계했습니다.
+
 ### 1) 테이블 네이밍 규칙 (`[접두사]_[서비스명]_[본문]_[이력(선택)]`)
 
 #### 🔹 접두사 (Prefix): 데이터 성격 및 역할
