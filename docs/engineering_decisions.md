@@ -168,3 +168,25 @@
 * **Impact & Reliability (성과 및 시스템 안정성)**
   * Task 클래스 전환과 무관하게 "재사용 근거 기반 분리" 원칙이 일관되게 유지됨을 재확인.
   * 설계 판단 기준 재확립.
+
+---
+## 9. 서버 아키텍처 재검토: RDS 분리 배치 vs EC2 내 통합 배치
+
+* **Context & Constraints (배경 및 제약 조건)**
+  * 최초 설계는 Amazon RDS for MySQL을 별도로 두고 EC2에는 Airflow만 올리는 구조를 검토.
+  * 실제 OLTP 데이터 스케일 산정 결과: 대상 200종목 × 5분봉(09:00~15:30, 78봉/일), `s_market_ohlcv`는 30분 슬라이딩 윈도우 유지로 약 1,400행, `s_market_ohlcv_history`는 48시간(2일) 보존 기준 약 31,200행 — 합산 스토리지 요구량이 10MB 미만 수준으로 극히 작음을 확인.
+  * RDS는 컴퓨팅(인스턴스)과 스토리지가 별도 과금되는 구조이며 프리티어(db.t4g.micro) 기준으로도 EC2 t3 계열과 이중으로 비용이 발생.
+  * 장 운영시간(08:00~15:30, 월 약 21거래일 기준 약 157.5시간)만 가동한다는 전제로 RDS 분리안과 EC2 통합안을 컴퓨팅+스토리지 합산 비용으로 비교.
+
+* **Engineering Decision & Trade-off (의사결정 및 트레이드오프)**
+  * 데이터 스케일이 작아 RDS의 관리 편의성(자동 백업, 장애조치)이 주는 이점 대비 이중 과금 구조로 인한 비용 손해가 더 크다고 판단.
+  * RDS 분리(EC2 t3.micro + RDS db.t4g.micro) 대비 EC2 통합(MySQL 직접 설치, t3.small)이 동급 RAM 구성에서 약 절반 수준의 비용으로 산정됨.
+  * 단, EC2 통합 시 인스턴스 RAM이 Claude Code, Airflow, MySQL이 동시에 상주해야 하는 병목 지점이 되므로 t3.micro(1GB) 보다 t3.small(2GB)을 실사용 한계선 후보로 보고 실측 테스트 진행 중.
+
+* **Technical Solution (기술적 해결책)**
+  1. MySQL을 EC2 인스턴스 내부에 직접 설치하여 로컬 MySQL에 localhost로 접속하도록 구성.
+  2. t3.micro / t3.small 두 사양으로 Airflow 태스크(특히 `fetch_s_market_ohlcv`, `insert_s_market_ohlcv_history`) 테스트를 진행해 실사용 가능한 최소 사양을 실측 후 확정 예정.
+
+* **Impact & Reliability (성과 및 시스템 안정성)**
+  * 데이터 스케일 대비 과도한 관리형 서비스(RDS) 채택을 지양해 비용 구조를 단순화.
+  * 사양 결정을 이론적 계산이 아닌 실측 기반으로 진행하여 추후 종목 수/봉 간격 확장 시에도 재현 가능한 사양 산정 근거를 남김.
