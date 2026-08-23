@@ -21,11 +21,14 @@ InvestBot은 **실시간 매매 집행의 정시성**과 **대용량 과거 시�
 
 | 저장소 (Storage) | DB / Layer | 데이터 성격 | 주요 역할 |
 | :--- | :--- | :--- | :--- |
-| **MySQL (RDS)** | `trading_prod` | OLTP / Staging | 실시간 시세 수집, 30분 슬라이딩 윈도우, 트레이딩 시그널 및 체결 상태 관리 |
+| **MySQL**¹ | `trading_prod` | OLTP / Staging | 실시간 시세 수집, 30분 슬라이딩 윈도우, 트레이딩 시그널 및 체결 상태 관리 |
 | **AWS S3** | `dw_trading_bronze` | OLAP (Raw Lake) | DQ Gate 검증을 통과한 원천 데이터의 일별 파티션 영구 보존 |
 | **AWS S3** | `dw_trading_gold` | OLAP (Data Mart) | 당일 체결 내역과 수집 시세 데이터를 결합한 스타 스키마 기반의 성과 분석 마트 |
 
+¹ RDS 대신 EC2 내부 직접 설치 방식 채택. 근거는 `engineering_decisions.md` 9번 항목 참고.
+
 ---
+
 
 ## 🔄 3. 데이터 생애주기 & 파이프라인 단계 (Data Lifecycle & Flow)
 ```text
