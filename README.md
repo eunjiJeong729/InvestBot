@@ -72,7 +72,9 @@ Kiwoom API
 ## ⚡ 5. 핵심 엔지니어링 의사결정 & 시스템 최적화 (Key Engineering Decisions)
 
 ### 1. API Rate Limit과 Airflow 지연 간의 연쇄 병목 차단
-- **Problem & Constraint:** 초당 1회 Call Limit 제약 하에서 Airflow 지연 발생 시 연쇄 병목 발생.
+- **Problem & Constraint:** 키움 REST API는 TR별 초당 호출 한도가 상이하며(국내주식
+  실전 기준 초당 5회), 현재 사용 중인 모의투자 계좌는 이보다 제한적인 초당 1회가
+  적용됨. 이 제약 하에서 Airflow 지연 발생 시 연쇄 병목 발생.
 - **Decision:** Catchup 순차 실행 대신 Dynamic Sliding Window(최신 30분) + UPSERT 기법 채택.
 - **Result:** 정시 실행률 확보 및 과거 갭 데이터 자가 복구 구현.
 
