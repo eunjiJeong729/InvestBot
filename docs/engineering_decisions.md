@@ -216,3 +216,20 @@
   * 데이터 스케일 대비 과도한 관리형 서비스(RDS) 채택을 지양해 비용 구조를 단순화.
   * 사양 결정을 이론적 계산이 아닌 실측 기반으로 진행하여 추후 종목 수/봉 간격 확장 시에도 재현 가능한 사양 산정 근거를 남김.
   * `vmstat` 실측 결과, 유휴 상태 free 메모리가 두 시나리오 모두 t3.micro(1GB)에서는 안정권 미달임을 확인 — t3.small(2GB)을 최종 최소 사양으로 확정.
+---
+## 10. Airflow triggerer 프로세스 제외를 통한 메모리 추가 확보
+
+* **Context & Constraints (배경 및 제약 조건)**
+  * 9번 항목에서 t3.small(2GB)을 최소 사양으로 확정했으나 MySQL+Airflow+개발환경 접속이 동시에 상주하는 구조라 추가적인 메모리 여유 확보가 필요.
+  * `airflow standalone`은 scheduler+webserver+triggerer를 함께 기동하는데 triggerer는 deferrable operator(예: `deferrable=True` 센서)를 사용할 때만 필요한 프로세스.
+
+* **Engineering Decision & Trade-off (의사결정 및 트레이드오프)**
+  * 현재 `dag_market`은 `PythonOperator`/`ShortCircuitOperator`만 사용하여 deferrable 오퍼레이터가 전혀 없음을 코드 전수 확인 완료. triggerer가 상시 유휴 상태임.
+  * `dag_trading`(Datasets 기반 트리거 예정), `dag_dw_migration`(외부 이벤트 대기 없음)도 deferrable 오퍼레이터가 필요 없는 구조로 설계되어 있어 triggerer 제외가 향후 서비스 확장 이후에도 유효할 것으로 판단.
+
+* **Technical Solution (기술적 해결책)**
+  1. `scripts/run_airflow_ui.py`에 `--no-triggerer` 옵션 추가, 지정 시 scheduler와 webserver만 별도 프로세스로 기동.
+
+* **Impact & Reliability (성과 및 시스템 안정성)**
+  * `vmstat` 실측 결과, triggerer 포함 시 유휴 상태 free 메모리 약 75MB, 제외 시 약 192MB로 확인 — 약 117MB의 추가 여유 확보.
+  * 추후 deferrable 오퍼레이터 도입이 실제로 필요해지는 시점에 재검토 조건으로 명시.

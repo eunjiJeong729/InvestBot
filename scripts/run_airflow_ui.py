@@ -8,6 +8,7 @@ import os
 import re
 import secrets
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -155,12 +156,56 @@ def ensure_admin_user(env: dict[str, str], *, username: str, password: str) -> N
         )
 
 
+def run_scheduler_and_webserver(*, env: dict[str, str], cwd: Path) -> int:
+    """triggerer 없이 scheduler + webserver만 실행하고 시그널로 함께 종료한다."""
+    processes: list[subprocess.Popen[bytes]] = []
+
+    def _terminate_children(signum: int, _frame: object) -> None:
+        signame = signal.Signals(signum).name
+        print(f"\n==> {signame} 수신 — scheduler/webserver 종료 중...")
+        for proc in processes:
+            if proc.poll() is None:
+                proc.terminate()
+
+    signal.signal(signal.SIGINT, _terminate_children)
+    signal.signal(signal.SIGTERM, _terminate_children)
+
+    print("==> 스케줄러를 시작합니다 (airflow scheduler)...")
+    processes.append(subprocess.Popen(["airflow", "scheduler"], env=env, cwd=cwd))
+    print("==> 웹서버를 시작합니다 (airflow webserver)...")
+    processes.append(subprocess.Popen(["airflow", "webserver"], env=env, cwd=cwd))
+    print()
+
+    exit_code = 0
+    try:
+        for proc in processes:
+            code = proc.wait()
+            if code and exit_code == 0:
+                exit_code = code
+    finally:
+        for proc in processes:
+            if proc.poll() is None:
+                proc.terminate()
+        for proc in processes:
+            try:
+                proc.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+    return exit_code
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="InvestBot DAG용 Airflow 웹 UI를 실행한다")
     parser.add_argument(
         "--config",
         default="configs/dev/debug.json",
         help="런타임 설정 파일 경로 (기본값: configs/dev/debug.json)",
+    )
+    parser.add_argument(
+        "--no-triggerer",
+        action="store_true",
+        help="triggerer 없이 scheduler+webserver만 실행한다 (deferrable operator 미사용 시 메모리 절약)",
     )
     args = parser.parse_args(argv)
 
@@ -195,6 +240,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"    AIRFLOW_HOME: {airflow_home}")
     print(f"    웹 UI:        http://localhost:{web_port}")
     print(f"    로그인:       {username} (AIRFLOW_ADMIN_PASSWORD)")
+    print(f"    triggerer:    {'off (--no-triggerer)' if args.no_triggerer else 'on (standalone)'}")
     print()
 
     print("==> Airflow 메타데이터 DB 마이그레이션 확인 중...")
@@ -222,11 +268,16 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print("    dag_market 확인됨")
 
-    print("==> 스케줄러와 웹서버를 시작합니다 (airflow standalone)...")
-    print()
-
     os.chdir(root)
     os.environ.update(env)
+
+    if args.no_triggerer:
+        print("==> 스케줄러와 웹서버를 시작합니다 (triggerer 없음)...")
+        print()
+        return run_scheduler_and_webserver(env=env, cwd=root)
+
+    print("==> 스케줄러와 웹서버를 시작합니다 (airflow standalone)...")
+    print()
     os.execvp("airflow", ["airflow", "standalone"])
 
 
