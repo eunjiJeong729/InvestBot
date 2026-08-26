@@ -205,12 +205,14 @@
 * **Engineering Decision & Trade-off (의사결정 및 트레이드오프)**
   * 데이터 스케일이 작아 RDS의 관리 편의성(자동 백업, 장애조치)이 주는 이점 대비 이중 과금 구조로 인한 비용 손해가 더 크다고 판단.
   * RDS 분리(EC2 t3.micro + RDS db.t4g.micro) 대비 EC2 통합(MySQL 직접 설치, t3.small)이 동급 RAM 구성에서 약 절반 수준의 비용으로 산정됨.
-  * 단, EC2 통합 시 인스턴스 RAM이 Claude Code, Airflow, MySQL이 동시에 상주해야 하는 병목 지점이 되므로 t3.micro(1GB) 보다 t3.small(2GB)을 실사용 한계선 후보로 보고 실측 테스트 진행 중.
+  * 단, EC2 통합 시 인스턴스 RAM이 Claude Code, Airflow, MySQL이 동시에 상주해야 하는 병목 지점이 되므로 t3.micro(1GB) 보다 t3.small(2GB)을 실사용 한계선 후보로 보고 실측 테스트 진행.
 
 * **Technical Solution (기술적 해결책)**
   1. MySQL을 EC2 인스턴스 내부에 직접 설치하여 로컬 MySQL에 localhost로 접속하도록 구성.
-  2. t3.micro / t3.small 두 사양으로 Airflow 태스크(특히 `fetch_s_market_ohlcv`, `insert_s_market_ohlcv_history`) 테스트를 진행해 실사용 가능한 최소 사양을 실측 후 확정 예정.
+  2. t3.micro / t3.small 두 사양으로 Airflow 태스크(특히 `fetch_s_market_ohlcv`, `insert_s_market_ohlcv_history`) 및 `airflow standalone`(scheduler+webserver+triggerer) 동시 구동 상태에서 `vmstat`으로 유휴 메모리를 실측.
+  3. 실측 결과를 근거로 t3.small(2GB)을 최소 운영 사양으로 확정. t3.micro(1GB)는 이 구성에서 실사용 불가로 판단해 제외.
 
 * **Impact & Reliability (성과 및 시스템 안정성)**
   * 데이터 스케일 대비 과도한 관리형 서비스(RDS) 채택을 지양해 비용 구조를 단순화.
   * 사양 결정을 이론적 계산이 아닌 실측 기반으로 진행하여 추후 종목 수/봉 간격 확장 시에도 재현 가능한 사양 산정 근거를 남김.
+  * `vmstat` 실측 결과, 유휴 상태 free 메모리가 두 시나리오 모두 t3.micro(1GB)에서는 안정권 미달임을 확인 — t3.small(2GB)을 최종 최소 사양으로 확정.
