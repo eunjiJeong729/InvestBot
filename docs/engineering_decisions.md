@@ -239,7 +239,7 @@
 ## 11. DW 이관 DQ Gate: PySpark → pandas 전환
 
 * **Context & Constraints (배경 및 제약 조건)**
-  * 초반 설계 시 DQ Gate를 PySpark 기반으로 명시했으나 실제 처리 대상(1일치 `s_market_ohlcv_history`, 200종목×78봉 ≈ 3~4MB)은 PySpark 로컬 모드 구동 자체의 JVM 오버헤드(최소 1.5~2GB)에 비해 지나치게 작음을 확인.
+  * 초반 설계 시 DQ Gate를 PySpark 기반으로 명시했으나 실제 처리 대상(1일치 `s_market_ohlcv_history`, 200종목×78봉)은 PySpark 로컬 모드 구동 자체의 JVM 오버헤드(최소 1.5~2GB)에 비해 지나치게 작음을 확인.
   * dag_dw_migration 배치가 EC2 인스턴스(t3.micro/t3.small, 1~2GB RAM) 위에서 MySQL·Airflow와 동시에 실행되는 구조이므로 배치 실행 그 순간만 대형 인스턴스로 리사이즈하는 방안도 검토했으나 Stop→Modify→Start 비용 대비 이득이 작음을 확인.
 
 * **Engineering Decision & Trade-off (의사결정 및 트레이드오프)**
