@@ -233,3 +233,44 @@
 * **Impact & Reliability (성과 및 시스템 안정성)**
   * `vmstat` 실측 결과, triggerer 포함 시 유휴 상태 free 메모리 약 75MB, 제외 시 약 192MB로 확인 — 약 117MB의 추가 여유 확보.
   * 추후 deferrable 오퍼레이터 도입이 실제로 필요해지는 시점에 재검토 조건으로 명시.
+
+---
+
+## 11. DW 이관 DQ Gate: PySpark → pandas 전환
+
+* **Context & Constraints (배경 및 제약 조건)**
+  * 초반 설계 시 DQ Gate를 PySpark 기반으로 명시했으나 실제 처리 대상(1일치 `s_market_ohlcv_history`, 200종목×78봉 ≈ 3~4MB)은 PySpark 로컬 모드 구동 자체의 JVM 오버헤드(최소 1.5~2GB)에 비해 지나치게 작음을 확인.
+  * dag_dw_migration 배치가 EC2 인스턴스(t3.micro/t3.small, 1~2GB RAM) 위에서 MySQL·Airflow와 동시에 실행되는 구조이므로 배치 실행 그 순간만 대형 인스턴스로 리사이즈하는 방안도 검토했으나 Stop→Modify→Start 비용 대비 이득이 작음을 확인.
+
+* **Engineering Decision & Trade-off (의사결정 및 트레이드오프)**
+  * 현재 데이터 스케일에서는 PySpark 보다 실제 운영 비용·복잡도 관점에서 pandas + pyarrow로 전환을 결정.
+  * 데이터 스케일(종목 수 등)이 확장되어 PySpark의 분산처리 이점이 실익으로 전환되는 시점에 재검토하기로 결정.
+
+* **Technical Solution (기술적 해결책)**
+  1. Null/중복/Range/Gap 4개 DQ 체크 항목을 pandas 연산으로 구현.
+  2. Parquet 변환은 `pyarrow` 엔진을 사용해 `partition_date` 폴더 구조 방식 적용.
+  3. 인스턴스 리사이즈 없이 동일 사양(EC2 t3 계열)에서 배치 실행이 가능하도록 유지.
+
+* **Impact & Reliability (성과 및 시스템 안정성)**
+  * 불필요한 엔진 오버헤드 제거로 EC2 사양을 낮게 유지하면서도 dag_dw_migration 실행 가능.
+  * 향후 데이터 스케일 확장 시 PySpark 재도입 판단 기준(처리 데이터량 대 구동 오버헤드 비교)을 명시.
+
+---
+
+## 12. DW 이관 배치 스케줄: 새벽 1회 → 장마감 직후로 변경
+
+* **Context & Constraints (배경 및 제약 조건)**
+  * 최초 설계는 dag_dw_migration을 "Daily 새벽 1회 배치"로 설계.
+  * 그러나 EC2 가동 시간을 장 운영시간(08:00~15:30)에 맞춰 최소화하는 비용 전략과 새벽 배치 스케줄이 충돌 — 새벽에 배치를 돌리려면 별도 시간대에 인스턴스를 추가로 기동해야하므로 관리 포인트와 비용 증가.
+  * `s_market_ohlcv_history`는 장 마감(15:30) 이후 더 이상 변경되지 않는 당일 데이터이므로 새벽까지 대기해야 할 데이터 정합성 상의 이유가 없음을 확인.
+
+* **Engineering Decision & Trade-off (의사결정 및 트레이드오프)**
+  * dag_dw_migration 배치를 장마감 직후(당일 장 운영 슬롯 종료 시점)로 변경.
+
+* **Technical Solution (기술적 해결책)**
+  1. MySQL 추출 → DQ Gate(pandas) → Parquet 변환 → S3 PUT → Glue 등록 → MySQL Purge 순서를 장마감 후 단일 실행 흐름으로 구성.
+  2. 배치 완료 확인 후 EC2 인스턴스를 중지하는 방식으로 운영.
+
+* **Impact & Reliability (성과 및 시스템 안정성)**
+  * 새벽 시간대 인스턴스 추가 기동 없이 하루 가동 시간대를 하나로 통합. EC2 컴퓨팅 비용 최소화.
+  * 데이터 정합성(당일 데이터 불변 시점)과 비용 최적화가 동시에 만족되는 스케줄로 재설계.
