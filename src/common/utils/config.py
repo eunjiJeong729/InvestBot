@@ -148,6 +148,91 @@ def load_aws_config() -> dict[str, Any]:
     return load_secret("aws")
 
 
+def _dag_dw_migration_section() -> dict[str, Any]:
+    ensure_runtime_config()
+    config_path = os.environ.get("INVESTBOT_CONFIG", "").strip()
+    if not config_path:
+        return {}
+    config = load_runtime_config(config_path)
+    airflow = dict(config.get("airflow") or {})
+    section = dict(airflow.get("dag") or {}).get("dw_migration")
+    return dict(section) if isinstance(section, dict) else {}
+
+
+def load_s3_config() -> dict[str, Any]:
+    """런타임 config ``airflow.dag.dw_migration.s3`` + (있으면) ``secrets.aws`` 병합."""
+    section = _dag_dw_migration_section()
+    s3 = dict(section.get("s3") or {})
+    config_path = os.environ.get("INVESTBOT_CONFIG", "").strip()
+    config = load_runtime_config(config_path) if config_path else {}
+    secrets = dict(config.get("secrets") or {})
+    secrets.update(dict(section.get("secrets") or {}))
+    aws_path = secrets.get("aws") or section.get("aws_secret")
+    if aws_path:
+        aws = load_json_config(aws_path)
+        for key in ("bucket", "region", "prefix", "endpoint_url", "aws_access_key_id", "aws_secret_access_key"):
+            if key not in s3 and aws.get(key) is not None:
+                s3[key] = aws[key]
+    return s3
+
+
+def load_glue_config() -> dict[str, Any]:
+    """런타임 config ``airflow.dag.dw_migration.glue`` + (있으면) ``secrets.aws`` 병합."""
+    section = _dag_dw_migration_section()
+    glue = dict(section.get("glue") or {})
+    config_path = os.environ.get("INVESTBOT_CONFIG", "").strip()
+    config = load_runtime_config(config_path) if config_path else {}
+    secrets = dict(config.get("secrets") or {})
+    secrets.update(dict(section.get("secrets") or {}))
+    aws_path = secrets.get("aws") or section.get("aws_secret")
+    if aws_path:
+        aws = load_json_config(aws_path)
+        for key in ("database", "table", "region", "endpoint_url", "aws_access_key_id", "aws_secret_access_key"):
+            if key not in glue and aws.get(key) is not None:
+                glue[key] = aws[key]
+    return glue
+
+
+@dataclass(frozen=True)
+class DagDwMigrationSettings:
+    """``dag_dw_migration`` DAG 런타임 설정 (Glue DB명: ``dw_trading_bronze``)."""
+
+    timezone: ZoneInfo
+    run_glue_registration: bool
+    source_table: str
+    table_name: str
+    s3_object_name: str
+    max_gap_ratio: float
+
+
+def load_dag_dw_migration_settings() -> DagDwMigrationSettings:
+    ensure_runtime_config()
+    config_path = os.environ.get("INVESTBOT_CONFIG", "").strip()
+    config = load_runtime_config(config_path) if config_path else {}
+    airflow = dict(config.get("airflow") or {})
+    airflow_env = dict(airflow.get("environment") or {})
+    section = _dag_dw_migration_section()
+
+    tz_name = str(
+        airflow_env.get("AIRFLOW__CORE__DEFAULT_TIMEZONE")
+        or os.environ.get("AIRFLOW__CORE__DEFAULT_TIMEZONE")
+        or "Asia/Seoul"
+    ).strip()
+    run_glue = bool(section.get("run_glue_registration", True))
+    source_table = str(section.get("source_table") or "s_market_ohlcv_history")
+    table_name = str(section.get("table_name") or "s_market_ohlcv_history")
+    s3_object_name = str(section.get("s3_object_name") or "data.parquet")
+    max_gap_ratio = float(section.get("max_gap_ratio", 0.5))
+    return DagDwMigrationSettings(
+        timezone=ZoneInfo(tz_name),
+        run_glue_registration=run_glue,
+        source_table=source_table,
+        table_name=table_name,
+        s3_object_name=s3_object_name,
+        max_gap_ratio=max_gap_ratio,
+    )
+
+
 @dataclass(frozen=True)
 class MarketSettings:
     """``airflow.dag.market`` 설정 + Airflow 기본 타임존."""

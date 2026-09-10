@@ -5,7 +5,8 @@
 
   "secrets": {
     "mysql": ".secrets/dev/debug/mysql.json",
-    "broker": ".secrets/dev/debug/broker.json"
+    "broker": ".secrets/dev/debug/broker.json",
+    "aws": ".secrets/dev/debug/aws.json"
   },
 
   "environment": {
@@ -77,6 +78,25 @@
     "dag": {
       "market": {
         "schedule_step_minutes": 5
+      },
+      "dw_migration": {
+        "run_glue_registration": true,
+        "max_gap_ratio": 0.5,
+        "source_table": "s_market_ohlcv_history",
+        "table_name": "s_market_ohlcv_history",
+        "s3_object_name": "data.parquet",
+        "s3": {
+          "bucket": "investbot-data-lake",
+          "region": "ap-northeast-2",
+          "prefix": "dw_trading_bronze",
+          "endpoint_url": "http://moto:5000"
+        },
+        "glue": {
+          "database": "dw_trading_bronze",
+          "table": "s_market_ohlcv_history",
+          "region": "ap-northeast-2",
+          "endpoint_url": "http://moto:5000"
+        }
       }
     }
   }

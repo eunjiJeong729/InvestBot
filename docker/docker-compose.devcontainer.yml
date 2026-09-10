@@ -2,14 +2,21 @@
 # Used by .devcontainer/devcontainer.json
 
 services:
+  moto:
+    image: motoserver/moto:latest
+    command: ["-H", "0.0.0.0", "-p", "5000"]
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+
   investbot:
     build:
       context: ..
       dockerfile: docker/Dockerfile
       args:
-        TARGETPLATFORM: ${DOCKER_PLATFORM:-linux/amd64}
-    platform: ${DOCKER_PLATFORM:-linux/amd64}
-    container_name: InvestBot
+        # devcontainer(Mac)는 arm64 native 빌드 — amd64 에뮬레이션 타임아웃 방지
+        TARGETPLATFORM: linux/arm64
+    platform: linux/arm64
     user: root
     env_file:
       - path: ../.env
@@ -24,5 +31,7 @@ services:
     stdin_open: true
     tty: true
     restart: "no"
+    depends_on:
+      - moto
     entrypoint: []
     command: sleep infinity

@@ -9,10 +9,10 @@
 InvestBot은 **실시간 매매 집행의 정시성**과 **대용량 과거 시계열 데이터 분석의 효율성**을 동시에 달성하기 위해 **하이브리드 Dual-Layer 아키텍처**를 채택했습니다.
 
 * **실시간 영역 (Service Layer - MySQL OLTP)**:
-  * 5분 주기로 동작하며 최신 24시간~48시간 동안의 데이터만 슬라이딩 윈도우 방식으로 핸들링합니다.
+  * 5분 주기로 동작하며, 최신 시세(`s_market_ohlcv`)는 30분 슬라이딩 윈도우로, 누적 이력(`s_market_ohlcv_history`)은 장 마감 후 S3 이관 전까지만 MySQL에 보관합니다.
   * DB 메모리 및 I/O 부하를 최적화하여 트레이딩 런타임 상태 판단 및 주문 실행을 타이트하게 수행합니다.
 * **분석 영역 (Data Lakehouse Layer - AWS S3 OLAP)**:
-  * 하루 1회 장 마감 후 배치 작업을 통해 PySpark 기반의 **Data Quality Gate**를 거친 데이터만 이관합니다.
+  * 하루 1회 장 마감 후(15:40 KST) 배치 작업을 통해 pandas 기반의 **Data Quality Gate**를 거친 데이터만 이관합니다.
   * 장기 시계열 데이터를 영구 보존하고 전략 성과 분석 및 AI 모델 학습을 위한 데이터 마트를 구축합니다.
 
 ---
@@ -40,10 +40,10 @@ d_market_asset_master                                                           
 s_market_ohlcv
 │
 ▼ (UPSERT)
-s_market_ohlcv_history (MySQL 48hr Window)
+s_market_ohlcv_history (MySQL, 이관 전까지 당일 보관)
 │
-├─ (Daily 1회 배치) ──► [Step 6: DQ Gate (PySpark)] ──► dw_trading_bronze (S3 적재)
-└─ (ETL 성공 확인 후)──► [Step 7: MySQL Purge] (48시간 이전 데이터 삭제)
+├─ (Daily 15:40 KST) ──► [Step 6: DQ Gate (pandas)] ──► dw_trading_bronze (S3 적재)
+└─ (ETL 성공 확인 후)──► [Step 7: MySQL Purge] (이관 완료한 당일 partition_date만 DROP)
 ```
 
 ### 파이프라인 단계별 세부 명세
@@ -55,8 +55,8 @@ s_market_ohlcv_history (MySQL 48hr Window)
 | **3** | 서비스 (MySQL) | 5분 | [조건 A: YES] 전체 자산 AI 밴드 분석<br>[조건 B: NO] 보유 자산 밴드 범위 이탈 체크 | `f_trading_asset_band` |
 | **4** | 서비스 (MySQL) | 5분 | 조건 만족 시 매수/매도 시그널 생성 및 DB 적재 (Insert) | `s_trading_signal` |
 | **5** | 서비스 (MySQL) | 5분 | 증권사 주문 API 호출 및 주문 체결 결과 반영 (Update) | `s_trading_signal` |
-| **6** | DW (S3) | 48시간 | PySpark 로컬 연산을 통한 데이터 누락/중복/오류 사전 검증 (DQ Gate) | `dw_trading_bronze` |
-| **7** | 서비스 (MySQL) | 48시간 | S3 이관 완결 확인 후 MySQL 내 48시간 이전 파티션/데이터 Purge | `s_market_ohlcv_history` |
+| **6** | DW (S3) | 1회/일(장마감 후) | pandas 로컬 연산을 통한 데이터 누락/중복/오류 사전 검증 (DQ Gate) | `dw_trading_bronze` |
+| **7** | 서비스 (MySQL) | 1회/일(장마감 후) | S3 이관 완료한 당일 partition_date 파티션만 MySQL DROP PARTITION (미이관 데이터는 보존) | `s_market_ohlcv_history` |
 
 ---
 
@@ -94,13 +94,13 @@ s_market_ohlcv_history (MySQL 48hr Window)
 ---
 
 ## 🛡️ 6. 데이터 품질 검증 관문 & Purge 정책 (DQ Gate & Purge)
-### 1) PySpark 기반 Data Quality Gate 검증 항목
-S3 DW 적재 전 배치 파이프라인에서 다음 4가지 핵심 조건 검증을 통과해야만 DW 이관 및 RDS Purge가 진행됩니다.
+### 1) pandas 기반 Data Quality Gate 검증 항목
+S3 DW 적재 전 배치 파이프라인에서 다음 4가지 핵심 조건 검증을 통과해야만 DW 이관 및 MySQL Purge가 진행됩니다.
 - Null Check: asset_code, market_time, close_price 등 필수 필드 결측치 존재 여부
 - Duplicate Check: 동일 (asset_type, asset_code, market_time) 복합키 중복 적재 여부
 - Range Check: close_price <= 0 또는 volume < 0 등 금융 데이터 유효 범위 이탈 여부
 - Gap Check: 거래 시간 내 5분 단위 연속성 유실(Gap) 비율 모니터링
 
-### 2) RDS Purge 정책
-- 보존 기간: 최근 48시간 (2일치) 데이터만 유지
-- 실행 방식: s_market_ohlcv_history 파티션 중 48시간 이전 파티션 ALTER TABLE ... DROP PARTITION 수행으로 DB I/O 부하 및 테이블 락 최소화.
+### 2) MySQL Purge 정책
+- 실행 시점: dag_dw_migration이 평일 1회(장마감 직후, 15:40 KST) 실행되며, 그 run이 방금 S3로 이관 완료한 당일 partition_date 파티션만을 대상으로 합니다.
+- 실행 방식: s_market_ohlcv_history 파티션 중 작업일 partition_date만 수행. 아직 S3로 이관되지 않은 과거 파티션은 대상에서 제외합니다.(미이관 데이터 유실 위험 차단)

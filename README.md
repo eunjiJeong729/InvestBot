@@ -14,7 +14,7 @@
 | :--- | :--- | :--- | :---: | :--- |
 | **마켓 데이터 공급** | `dag_market` | 평일 08:00~15:55 KST (5분 슬롯) | **`완료`** | Kiwoom API 종목 마스터 갱신 및 5분봉 OHLCV 수집/이력 적재 |
 | **전략 분석 및 매매** | `dag_trading` | Event-driven | `예정` | 계좌 정보 수집, AI 밴드 분석 및 매수/매도 시그널 주문 집행 |
-| **DW 이관 (S3)** | `dag_dw_migration` | Daily (새벽 1회) | `예정` | Data Quality Gate (PySpark) 검증 후 S3 Bronze 적재 |
+| **DW 이관 (S3)** | `dag_dw_migration` | 평일 15:40 KST (장 마감 직후) | **`진행중`** | pandas DQ Gate 검증 후 S3 Bronze 적재 및 Glue 파티션 등록 |
 
 👉 자세한 DAG 동작 등 세부 사항은 [docs/dags.md](docs/dags.md)를 참고하세요.
 
@@ -35,7 +35,7 @@ Kiwoom API
 │                               ▼ Event-Driven Trigger
 │                          [dag_trading] ──► 계좌 상태/밴드 분석/주문 집행
 │
-└─ (새벽 1회 배치)       ───► [Data Quality Gate (PySpark)]               ──► dw_trading_bronze (S3)
+└─ (평일 15:40 KST)     ───► [Data Quality Gate (pandas)]               ──► dw_trading_bronze (S3)
 ```
 👉 자세한 데이터 아키텍처 및 네이밍 규칙은 [docs/architecture.md](docs/architecture.md)를 참고하세요.
 
@@ -43,25 +43,27 @@ Kiwoom API
 
 ## 💻 3. 기술 스택 & 저장소 구조
 
-* **Language & Core**: Python 3.12, Apache Airflow 2.x, PySpark
+* **Language & Core**: Python 3.12, Apache Airflow 2.x, pandas, pyarrow
 * **Database & Storage**: MySQL 8.x (OLTP), AWS S3 (Data Lakehouse)
-* **API & Infra**: Kiwoom REST API, Docker, AWS boto3(운영환경), Dev Containers(개발환경)
+* **API & Infra**: Kiwoom REST API, Docker, AWS boto3(운영환경), moto(로컬 AWS 목킹), Dev Containers(개발환경)
 
 ```text
 .
 ├── .devcontainer/    # VS Code/Cursor Dev Container (Airflow UI 8080 포워딩)
 ├── configs/          # 환경별 런타임 프로파일 (secrets 경로, env, Airflow, target universe)
 ├── .secrets/         # 크리덴셜 (*.example.json 활용)
+├── data/             # 실행 시 자동 생성되는 런타임 산출물 (gitignore — Airflow 상태, dw_migration 임시 parquet 등)
 ├── docs/             # 설계 문서, 상세 DAG 명세 등
 ├── infra/            # HTTP, MySQL, S3 등 공통 인프라 클라이언트
 ├── src/
 │   ├── common/       # entity, config, logging, 공통 API client(Kiwoom 등) 유틸
 │   ├── market/       # [완료] dag_market 및 fetch/insert task
 │   ├── trading/      # [예정] dag_trading 및 분석기/주문 로직
-│   └── dw_migration/ # [예정] dag_dw_migration 및 DQ Gate/S3 이관
+│   └── dw_migration/   # dag_dw_migration 소스 (DAG ID: dag_dw_migration)
 ├── docker/           # Dockerfile, compose, entrypoint
 ├── scripts/          # 실행 헬퍼
-└── requirements.txt
+├── requirements.txt
+└── requirements-dev.txt  # devcontainer용 (moto 포함)
 ```
 ---
 ## 📚 4. 프로젝트 문서 목차
@@ -108,7 +110,8 @@ Kiwoom API
 ```bash
 git clone <repository-url>
 cd investbot
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # devcontainer / 로컬 개발
+# pip install -r requirements.txt    # EC2 prod 배포 시
 ```
 
 ### 2. Secrets 설정
@@ -129,7 +132,8 @@ cp .secrets/broker.example.json .secrets/dev/debug/broker.json
 ### 3. Dev Container (권장)
 
 VS Code / Cursor에서 **Reopen in Container**로 `.devcontainer/devcontainer.json` 환경을 엽니다.  
-포트 `8080`(Airflow UI)이 자동 포워딩됩니다.
+포트 `8080`(Airflow UI)이 자동 포워딩됩니다. `docker-compose.devcontainer.yml`에 **moto_server**가 포함되어
+S3/Glue 로컬 목킹(`http://moto:5000`)이 기동됩니다.
 
 ### 4. Docker Compose
 

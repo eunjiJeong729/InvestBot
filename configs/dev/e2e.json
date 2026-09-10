@@ -1,0 +1,77 @@
+{
+  "name": "e2e",
+  "profile": "dev",
+  "description": "DW migration E2E — moto AWS + s_market_ohlcv_history_test (실 테이블 격리)",
+
+  "secrets": {
+    "mysql": ".secrets/dev/debug/mysql.json",
+    "broker": ".secrets/dev/debug/broker.json",
+    "aws": ".secrets/dev/debug/aws.json"
+  },
+
+  "environment": {
+    "TZ": "Asia/Seoul",
+    "PYTHONPATH": "/app",
+    "INVESTBOT_CONFIG": "configs/dev/e2e.json",
+    "INVESTBOT_PROFILE": "dev",
+    "INVESTBOT_SECRETS_DIR": ".secrets/dev/debug",
+    "INVESTBOT_MYSQL_CONFIG": ".secrets/dev/debug/mysql.json",
+    "INVESTBOT_BROKER_CONFIG": ".secrets/dev/debug/broker.json",
+    "KIWOOM_TIMEOUT": "15"
+  },
+
+  "environment_from_secrets": {
+    "broker": {
+      "KIWOOM_BASE_URL": "base_url",
+      "KIWOOM_APP_KEY": "app_key",
+      "KIWOOM_SECRET_KEY": "app_secret",
+      "KIWOOM_ACCOUNT_NO": "account_no"
+    }
+  },
+
+  "run": {
+    "timezone": "Asia/Seoul",
+    "log_level": "DEBUG"
+  },
+
+  "target_universe": ["005930", "000660"],
+
+  "airflow": {
+    "environment": {
+      "AIRFLOW_HOME": "data/airflow",
+      "AIRFLOW__CORE__DAGS_FOLDER": "src",
+      "AIRFLOW__CORE__LOAD_EXAMPLES": "False",
+      "AIRFLOW__CORE__DEFAULT_TIMEZONE": "Asia/Seoul",
+      "AIRFLOW__WEBSERVER__DEFAULT_UI_TIMEZONE": "Asia/Seoul",
+      "AIRFLOW__WEBSERVER__WORKERS": "1",
+      "AIRFLOW__WEBSERVER__SESSION_BACKEND": "database",
+      "AIRFLOW__WEBSERVER__WEB_SERVER_PORT": "8080",
+      "AIRFLOW__LOGGING__LOGGING_LEVEL": "INFO",
+      "AIRFLOW__LOGGING__FAB_LOGGING_LEVEL": "WARNING"
+    },
+    "dag": {
+      "market": {
+        "schedule_step_minutes": 5
+      },
+      "dw_migration": {
+        "run_glue_registration": true,
+        "max_gap_ratio": 1.0,
+        "source_table": "s_market_ohlcv_history_test",
+        "table_name": "s_market_ohlcv_history",
+        "s3_object_name": "data.parquet",
+        "s3": {
+          "bucket": "investbot-data-lake-e2e",
+          "region": "ap-northeast-2",
+          "prefix": "dw_trading_bronze_e2e",
+          "endpoint_url": "http://moto:5000"
+        },
+        "glue": {
+          "database": "dw_trading_bronze_e2e",
+          "table": "s_market_ohlcv_history",
+          "region": "ap-northeast-2",
+          "endpoint_url": "http://moto:5000"
+        }
+      }
+    }
+  }
+}
