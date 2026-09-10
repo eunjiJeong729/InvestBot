@@ -24,7 +24,8 @@
       }
     }
   },
-  "postCreateCommand": "pip install --no-cache-dir -r requirements.txt",
+  "postCreateCommand": "pip install --no-cache-dir -r requirements-dev.txt",
+  "runServices": ["investbot"],
   "remoteUser": "root",
   "containerUser": "root"
 }

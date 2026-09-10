@@ -76,16 +76,18 @@ def configure_task_logging() -> None:
     _CONFIGURED = True
 
 
-def get_task_logger(task_name: str) -> logging.Logger:
+def get_task_logger(task_name: str, *, service: str = "market") -> logging.Logger:
     """Airflow task 로그에 기록하는 로거를 반환한다."""
     configure_task_logging()
-    return logging.getLogger(f"{_LOGGER_ROOT}.market.{task_name}")
+    return logging.getLogger(f"{_LOGGER_ROOT}.{service}.{task_name}")
 
 
 @contextmanager
-def log_task_run(task_name: str, **context: Any) -> Iterator[logging.Logger]:
+def log_task_run(
+    task_name: str, *, service: str = "market", **context: Any
+) -> Iterator[logging.Logger]:
     """태스크 시작/종료와 경과 시간을 로그한다."""
-    logger = get_task_logger(task_name)
+    logger = get_task_logger(task_name, service=service)
     started = time.perf_counter()
     if context:
         logger.info("task start context=%s", context)
@@ -102,13 +104,15 @@ def log_task_run(task_name: str, **context: Any) -> Iterator[logging.Logger]:
         logger.info("task finished elapsed=%.2fs", elapsed)
 
 
-def log_gate_decision(gate_name: str, *, allowed: bool, reason: str, **details: Any) -> None:
+def log_gate_decision(
+    gate_name: str, *, allowed: bool, reason: str, service: str = "market", **details: Any
+) -> None:
     """ShortCircuit gate 판단 결과를 Airflow task 로그에 남긴다.
 
     Airflow 기본 로그는 True/False만 보여 주므로, skip/실행 이유(reason)와
     logical_date 등 부가 정보를 구조화해 남겨 운영·디버깅에 쓴다.
     gate 통과 여부 자체는 호출부 return 값으로만 결정된다.
     """
-    logger = get_task_logger(gate_name)
+    logger = get_task_logger(gate_name, service=service)
     payload = {"allowed": allowed, "reason": reason, **details}
     logger.info("gate decision %s", payload)

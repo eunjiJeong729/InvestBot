@@ -1,0 +1,75 @@
+{
+  "name": "ec2-test",
+  "profile": "test",
+  "description": "EC2 staging — real AWS endpoints, test resources (not moto)",
+
+  "secrets": {
+    "mysql": ".secrets/test/ec2/mysql.json",
+    "broker": ".secrets/test/ec2/broker.json",
+    "aws": ".secrets/test/ec2/aws.json"
+  },
+
+  "environment": {
+    "TZ": "Asia/Seoul",
+    "PYTHONPATH": "/app",
+    "INVESTBOT_CONFIG": "configs/test/ec2.json",
+    "INVESTBOT_PROFILE": "test",
+    "INVESTBOT_SECRETS_DIR": ".secrets/test/ec2",
+    "INVESTBOT_MYSQL_CONFIG": ".secrets/test/ec2/mysql.json",
+    "INVESTBOT_BROKER_CONFIG": ".secrets/test/ec2/broker.json",
+    "KIWOOM_TIMEOUT": "15"
+  },
+
+  "environment_from_secrets": {
+    "broker": {
+      "KIWOOM_BASE_URL": "base_url",
+      "KIWOOM_APP_KEY": "app_key",
+      "KIWOOM_SECRET_KEY": "app_secret",
+      "KIWOOM_ACCOUNT_NO": "account_no"
+    }
+  },
+
+  "run": {
+    "timezone": "Asia/Seoul",
+    "log_level": "INFO"
+  },
+
+  "target_universe": [],
+
+  "airflow": {
+    "environment": {
+      "AIRFLOW_HOME": "data/airflow",
+      "AIRFLOW__CORE__DAGS_FOLDER": "src",
+      "AIRFLOW__CORE__LOAD_EXAMPLES": "False",
+      "AIRFLOW__CORE__DEFAULT_TIMEZONE": "Asia/Seoul",
+      "AIRFLOW__WEBSERVER__DEFAULT_UI_TIMEZONE": "Asia/Seoul",
+      "AIRFLOW__WEBSERVER__WORKERS": "1",
+      "AIRFLOW__WEBSERVER__SESSION_BACKEND": "database",
+      "AIRFLOW__WEBSERVER__WEB_SERVER_PORT": "8080",
+      "AIRFLOW__LOGGING__LOGGING_LEVEL": "INFO",
+      "AIRFLOW__LOGGING__FAB_LOGGING_LEVEL": "WARNING"
+    },
+    "dag": {
+      "market": {
+        "schedule_step_minutes": 5
+      },
+      "dw_migration": {
+        "run_glue_registration": true,
+        "max_gap_ratio": 0.5,
+        "source_table": "s_market_ohlcv_history",
+        "table_name": "s_market_ohlcv_history",
+        "s3_object_name": "data.parquet",
+        "s3": {
+          "bucket": "TODO-test-bucket-name",
+          "region": "ap-northeast-2",
+          "prefix": "dw_trading_bronze"
+        },
+        "glue": {
+          "database": "dw_trading_bronze",
+          "table": "s_market_ohlcv_history",
+          "region": "ap-northeast-2"
+        }
+      }
+    }
+  }
+}

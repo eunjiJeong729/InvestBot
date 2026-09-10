@@ -15,6 +15,9 @@ venv/
 .env
 .DS_Store
 
+# generated runtime config (e.g. run_dw_migration_e2e.py's moto-endpoint copy)
+configs/**/.*.json
+
 # secrets (keep examples)
 .secrets/**
 !.secrets/**/
