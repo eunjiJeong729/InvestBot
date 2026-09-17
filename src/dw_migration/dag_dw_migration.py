@@ -6,18 +6,17 @@ import os
 from datetime import date, datetime, timedelta
 from functools import partial
 
-import pendulum
-
 from airflow import DAG
 from airflow.operators.python import PythonOperator, ShortCircuitOperator
 
 from infra.db.rdbms.mysql import MySQLClient
-from src.common.utils.config import (
+from src.common.utils.airflow.config import (
     init_runtime_config,
     load_dag_dw_migration_settings,
     load_mysql_config,
 )
-from src.common.utils.task_log import log_gate_decision
+from src.common.utils.airflow.date import context_logical_date_in_timezone
+from src.common.utils.airflow.task_log import log_gate_decision
 from src.dw_migration.tasks.convert_s_market_ohlcv_history import ConvertSMarketOhlcvHistory
 from src.dw_migration.tasks.extract_s_market_ohlcv_history import ExtractSMarketOhlcvHistory
 from src.dw_migration.tasks.gate_dq_s_market_ohlcv_history import should_pass_dq_gate
@@ -40,26 +39,14 @@ _DAG_SCHEDULE = "40 15 * * 1-5"  # 평일 15:40 KST — 장 마감 직후 DW 이
 _SERVICE = "dw_migration"
 
 
-def _logical_date_kst(context: object) -> datetime | None:
-    if not isinstance(context, dict):
-        return None
-    raw = context.get("logical_date")
-    if not isinstance(raw, datetime):
-        return None
-    slot_dt = raw.replace(tzinfo=pendulum.UTC) if raw.tzinfo is None else raw
-    return pendulum.instance(slot_dt).in_timezone(_DW.timezone).replace(
-        second=0, microsecond=0
-    )
-
-
 def _run_with_partition_date(dw_task: object, **context: object) -> object:
-    slot = _logical_date_kst(context)
+    slot = context_logical_date_in_timezone(context, _DW.timezone)
     partition_date = (slot or datetime.now(_DW.timezone)).date()
     return dw_task.run(partition_date=partition_date, **context)  # type: ignore[attr-defined]
 
 
 def _run_gate_with_partition_date(gate_fn: object, **context: object) -> object:
-    slot = _logical_date_kst(context)
+    slot = context_logical_date_in_timezone(context, _DW.timezone)
     partition_date = (slot or datetime.now(_DW.timezone)).date()
     return gate_fn(partition_date=partition_date, **context)  # type: ignore[operator]
 
@@ -80,7 +67,7 @@ def _is_market_open(market_date: date) -> bool | None:
 
 def should_run_dw_migration(**context: object) -> bool:
     """gate_trading_day — 거래일에만 DW 이관 실행."""
-    slot_kst = _logical_date_kst(context)
+    slot_kst = context_logical_date_in_timezone(context, _DW.timezone)
     if slot_kst is None:
         log_gate_decision(
             "gate_trading_day",

@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from src.common.utils.config import ensure_runtime_config, load_runtime_config
+from src.common.utils.airflow.config import ensure_runtime_config, load_runtime_config
 
 _CONFIGURED = False
 _LOGGER_ROOT = "investbot"

@@ -6,9 +6,9 @@ from datetime import datetime
 
 from infra.db.rdbms.mysql import MySQLClient
 from src.common.entity import DMarketAssetMaster
-from src.common.utils.config import load_mysql_config, load_target_universe
-from src.common.utils.db_snapshot import replace_snapshot
-from src.common.utils.task_log import log_task_run
+from src.common.utils.airflow.config import load_mysql_config, load_target_universe
+from src.common.utils.db.db_snapshot import replace_snapshot
+from src.common.utils.airflow.task_log import log_task_run
 from src.market.tasks import Task
 from src.common.kiwoom_api import (
     KiwoomApi,

@@ -6,9 +6,6 @@ import logging
 import time
 from datetime import date, datetime, timedelta, tzinfo
 from typing import Any
-from zoneinfo import ZoneInfo
-
-import pendulum
 
 from infra.db.rdbms.mysql import MySQLClient
 from src.common.kiwoom_api import (
@@ -20,9 +17,10 @@ from src.common.kiwoom_api import (
     parse_number,
 )
 from src.common.entity import DMarketAssetMaster, SMarketOhlcv
-from src.common.utils.config import load_market_settings, load_mysql_config
-from src.common.utils.db_snapshot import replace_snapshot
-from src.common.utils.task_log import log_task_run
+from src.common.utils.airflow.config import load_market_settings, load_mysql_config
+from src.common.utils.airflow.date import context_logical_date_in_timezone
+from src.common.utils.db.db_snapshot import replace_snapshot
+from src.common.utils.airflow.task_log import log_task_run
 from src.market.tasks import Task
 
 SCHEDULE_OHLCV_BAR_COUNT = 7  # run 슬롯 + 이전 6개 5분봉 (예: 12:30 → 12:30~12:00)
@@ -36,14 +34,11 @@ def resolve_schedule_slot_kst(context: object | None = None) -> datetime:
     context 없음 (CLI 테스트 등): 현재 시각을 step 단위 floor.
     """
     market = load_market_settings()
-    if isinstance(context, dict):
-        raw = context.get("logical_date")
-        if isinstance(raw, datetime):
-            slot_dt = raw.replace(tzinfo=ZoneInfo("UTC")) if raw.tzinfo is None else raw
-            return (
-                pendulum.instance(slot_dt).in_timezone(market.timezone)
-                + timedelta(minutes=market.schedule_step_minutes)
-            ).replace(second=0, microsecond=0)
+    base = context_logical_date_in_timezone(context, market.timezone)
+    if base is not None:
+        return (base + timedelta(minutes=market.schedule_step_minutes)).replace(
+            second=0, microsecond=0
+        )
 
     now = datetime.now(market.timezone)
     floored = (now.minute // market.schedule_step_minutes) * market.schedule_step_minutes

@@ -1,6 +1,6 @@
 """공통 유틸리티."""
 
-from src.common.utils.config import (
+from src.common.utils.airflow.config import (
     MarketSettings,
     apply_runtime_config,
     ensure_runtime_config,
@@ -24,8 +24,8 @@ from src.common.utils.error import (
     InvalidTimePeriodError,
     MarketClientError,
 )
-from src.common.utils.load import entity_from_dict, entity_from_json
-from src.common.utils.sql_loader import format_sql, load_sql, resolve_sql_path
+from src.common.utils.io.load import entity_from_dict, entity_from_json
+from src.common.utils.io.sql_loader import format_sql, load_sql, resolve_sql_path
 from src.common.utils.util import hash_id, safe_filename
 
 __all__ = [

@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from src.common.utils.config import repo_root
+from src.common.utils.airflow.config import repo_root
 
 
 def resolve_sql_path(service: str, sql_name: str) -> Path:

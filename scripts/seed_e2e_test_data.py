@@ -9,8 +9,8 @@ from datetime import date, datetime, time, timedelta
 
 from infra.db.rdbms.mysql import MySQLClient
 from src.common.entity import SMarketOhlcvHistory
-from src.common.utils.config import init_runtime_config, load_dag_dw_migration_settings, load_mysql_config
-from src.common.utils.db_partition import (
+from src.common.utils.airflow.config import init_runtime_config, load_dag_dw_migration_settings, load_mysql_config
+from src.common.utils.db.db_partition import (
     existing_partition_names,
     partition_name,
     partition_upper_bound,

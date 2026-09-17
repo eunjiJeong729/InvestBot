@@ -7,9 +7,9 @@ from datetime import date
 import pandas as pd
 
 from infra.db.rdbms.mysql import MySQLClient
-from src.common.utils.config import load_dag_dw_migration_settings, load_mysql_config, repo_root
-from src.common.utils.sql_loader import format_sql
-from src.common.utils.task_log import log_task_run
+from src.common.utils.airflow.config import load_dag_dw_migration_settings, load_mysql_config, repo_root
+from src.common.utils.io.sql_loader import format_sql
+from src.common.utils.airflow.task_log import log_task_run
 from src.dw_migration.tasks import Task
 
 _SERVICE = "dw_migration"

@@ -4,17 +4,15 @@ from __future__ import annotations
 
 import os
 from datetime import date, datetime, time, timedelta
-from zoneinfo import ZoneInfo
-
-import pendulum
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator, ShortCircuitOperator
 
 from infra.db.rdbms.mysql import MySQLClient
 from src.common.entity import DMarketAssetMaster
-from src.common.utils.config import init_runtime_config, load_market_settings, load_mysql_config
-from src.common.utils.task_log import log_gate_decision
+from src.common.utils.airflow.config import init_runtime_config, load_market_settings, load_mysql_config
+from src.common.utils.airflow.date import context_logical_date_in_timezone
+from src.common.utils.airflow.task_log import log_gate_decision
 from src.market.tasks.fetch_d_market_asset_master import FetchDMarketAssetMaster
 from src.market.tasks.fetch_s_market_ohlcv import FetchSMarketOhlcv
 from src.market.tasks.insert_s_market_ohlcv_history import InsertSMarketOhlcvHistory
@@ -50,19 +48,11 @@ def _slot_from_context(context: object) -> tuple[datetime, time] | None:
     Airflow UI의 logical_date 라벨과 실제 슬롯 값은 스케줄 간격만큼 차이가 난다
     (예: UI 13:55 run → slot 14:00).
     """
-    if not isinstance(context, dict):
+    base = context_logical_date_in_timezone(context, _MARKET_TZ)
+    if base is None:
         return None
 
-    raw = context.get("logical_date")
-    if not isinstance(raw, datetime):
-        return None
-
-    # naive는 UTC로 간주한다. pendulum.DateTime.astimezone(ZoneInfo) 후 timedelta를
-    # 더하면 tz가 사라지므로 pendulum.instance로 맞춘 뒤 in_timezone만 사용한다.
-    slot_dt = raw.replace(tzinfo=ZoneInfo("UTC")) if raw.tzinfo is None else raw
-    slot_kst = (
-        pendulum.instance(slot_dt).in_timezone(_MARKET_TZ) + timedelta(minutes=_SCHEDULE_STEP_MINUTES)
-    ).replace(second=0, microsecond=0)
+    slot_kst = (base + timedelta(minutes=_SCHEDULE_STEP_MINUTES)).replace(second=0, microsecond=0)
     slot_time = slot_kst.time().replace(second=0, microsecond=0)
     return slot_kst, slot_time
 

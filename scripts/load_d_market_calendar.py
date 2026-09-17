@@ -15,8 +15,8 @@ from typing import Any
 
 from infra.db.rdbms.mysql import MySQLClient
 from src.common.entity import DMarketCalendar
-from src.common.utils.config import init_runtime_config
-from src.common.utils.db_snapshot import replace_snapshot
+from src.common.utils.airflow.config import init_runtime_config
+from src.common.utils.db.db_snapshot import replace_snapshot
 
 _CALENDAR_CODE = "XKRX"
 _OPEN_TZ = "Asia/Seoul"
@@ -64,7 +64,7 @@ def build_calendar_rows(*, start: date, end: date) -> list[tuple[date, int, time
 
 def load_market_calendar(*, start: date, end: date) -> dict[str, Any]:
     """계산한 캘린더를 ``replace_snapshot``으로 적재한다."""
-    from src.common.utils.config import load_mysql_config
+    from src.common.utils.airflow.config import load_mysql_config
 
     db = MySQLClient(load_mysql_config())
     now = datetime.now()
