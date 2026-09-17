@@ -14,7 +14,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from src.common.utils.config import init_runtime_config, repo_root, resolve_repo_path
+from src.common.utils.airflow.config import init_runtime_config, repo_root, resolve_repo_path
 
 DEFAULT_ADMIN_USERNAME = "admin"
 DEFAULT_WEBSERVER_PORT = 8080

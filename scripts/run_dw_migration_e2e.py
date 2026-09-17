@@ -12,7 +12,7 @@ import pendulum
 from infra.db.rdbms.mysql import MySQLClient
 from infra.s3 import S3Client, S3Config
 from src.common.entity import SMarketOhlcvHistory
-from src.common.utils.config import (
+from src.common.utils.airflow.config import (
     init_runtime_config,
     load_dag_dw_migration_settings,
     load_glue_config,
@@ -68,7 +68,7 @@ def _init_config_with_moto() -> None:
     """
     import json
 
-    from src.common.utils.config import resolve_repo_path
+    from src.common.utils.airflow.config import resolve_repo_path
 
     path = resolve_repo_path(_CONFIG)
     config = json.loads(path.read_text(encoding="utf-8"))

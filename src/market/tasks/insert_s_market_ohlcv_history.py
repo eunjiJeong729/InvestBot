@@ -6,14 +6,14 @@ from datetime import date, datetime
 
 from infra.db.rdbms.mysql import MySQLClient
 from src.common.entity import SMarketOhlcv, SMarketOhlcvHistory
-from src.common.utils.config import load_mysql_config
-from src.common.utils.db_partition import (
+from src.common.utils.airflow.config import load_mysql_config
+from src.common.utils.db.db_partition import (
     existing_partition_names,
     partition_name,
     partition_upper_bound,
 )
-from src.common.utils.sql_loader import format_sql
-from src.common.utils.task_log import log_task_run
+from src.common.utils.io.sql_loader import format_sql
+from src.common.utils.airflow.task_log import log_task_run
 from src.market.tasks import Task
 
 _SERVICE = "market"

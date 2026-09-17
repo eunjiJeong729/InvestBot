@@ -9,7 +9,7 @@ from datetime import date, datetime, tzinfo
 from typing import Any
 
 from infra.http import HttpError, NetworkError, RestClient
-from src.common.utils.config import ensure_runtime_config
+from src.common.utils.airflow.config import ensure_runtime_config
 
 _DEFAULT_MAX_RETRIES = 5
 _DEFAULT_MAX_RPS = 5.0

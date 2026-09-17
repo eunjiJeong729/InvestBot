@@ -7,8 +7,8 @@ from typing import Any
 
 import pandas as pd
 
-from src.common.utils.config import load_dag_dw_migration_settings, repo_root
-from src.common.utils.task_log import log_gate_decision
+from src.common.utils.airflow.config import load_dag_dw_migration_settings, repo_root
+from src.common.utils.airflow.task_log import log_gate_decision
 
 _SERVICE = "dw_migration"
 _GATE_ID = "gate_dq_s_market_ohlcv_history"

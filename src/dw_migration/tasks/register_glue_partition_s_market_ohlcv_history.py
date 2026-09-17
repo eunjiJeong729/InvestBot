@@ -7,8 +7,8 @@ from datetime import date
 
 from infra.glue import GlueClient
 from infra.s3 import S3Client, S3Config
-from src.common.utils.config import load_dag_dw_migration_settings, load_glue_config, load_s3_config, repo_root
-from src.common.utils.task_log import log_task_run
+from src.common.utils.airflow.config import load_dag_dw_migration_settings, load_glue_config, load_s3_config, repo_root
+from src.common.utils.airflow.task_log import log_task_run
 from src.dw_migration.tasks import Task
 
 _SERVICE = "dw_migration"

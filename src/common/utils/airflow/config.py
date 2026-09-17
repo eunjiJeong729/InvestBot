@@ -148,15 +148,20 @@ def load_aws_config() -> dict[str, Any]:
     return load_secret("aws")
 
 
+def _dag_section(config: dict[str, Any], service: str) -> dict[str, Any]:
+    """``airflow.dag.{service}`` 섹션을 꺼낸다. 없으면 빈 dict."""
+    airflow = dict(config.get("airflow") or {})
+    section = dict(airflow.get("dag") or {}).get(service)
+    return dict(section) if isinstance(section, dict) else {}
+
+
 def _dag_dw_migration_section() -> dict[str, Any]:
     ensure_runtime_config()
     config_path = os.environ.get("INVESTBOT_CONFIG", "").strip()
     if not config_path:
         return {}
     config = load_runtime_config(config_path)
-    airflow = dict(config.get("airflow") or {})
-    section = dict(airflow.get("dag") or {}).get("dw_migration")
-    return dict(section) if isinstance(section, dict) else {}
+    return _dag_section(config, "dw_migration")
 
 
 def load_s3_config() -> dict[str, Any]:
@@ -252,7 +257,7 @@ def load_market_settings() -> MarketSettings:
     config = load_runtime_config(config_path) if config_path else {}
     airflow = dict(config.get("airflow") or {})
     airflow_env = dict(airflow.get("environment") or {})
-    market = dict(dict(airflow.get("dag") or {}).get("market") or {})
+    market = _dag_section(config, "market")
 
     tz_name = str(
         airflow_env.get("AIRFLOW__CORE__DEFAULT_TIMEZONE")
