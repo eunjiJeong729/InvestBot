@@ -52,7 +52,7 @@ def _run_dq_checks(df: pd.DataFrame, *, max_gap_ratio: float = 0.5) -> dict[str,
         ].head(3).to_dict(orient="records")
 
     dup_row_mask = df.duplicated(subset=list(_KEY_COLUMNS), keep=False)
-    dup_count = int(df.duplicated(subset=list(_KEY_COLUMNS)).sum())
+    dup_count = int(dup_row_mask.sum())
     checks["duplicate_check"] = {"passed": dup_count == 0, "count": dup_count}
     if dup_count:
         checks["duplicate_check"]["sample"] = df.loc[
@@ -128,19 +128,20 @@ def _expected_timestamps(start: datetime, end: datetime) -> set[datetime]:
 
 
 def should_pass_dq_gate(*, partition_date: date, **context: object) -> bool:
-    """ShortCircuitOperator callable — DQ 실패 시 downstream 차단."""
+    """PythonOperator callable — DQ 실패 시 ValueError로 태스크를 failed 처리해 downstream 차단."""
     run_dir = repo_root() / "data" / "dw_migration" / "runs" / partition_date.isoformat()
     path = run_dir / "extracted.parquet"
     if not path.is_file():
+        reason = "missing_extracted_parquet"
         log_gate_decision(
             _GATE_ID,
             allowed=False,
-            reason="missing_extracted_parquet",
+            reason=reason,
             service=_SERVICE,
             partition_date=str(partition_date),
             path=str(path),
         )
-        return False
+        raise ValueError(f"DQ Gate failed: {reason} path={path}")
 
     settings = load_dag_dw_migration_settings()
     try:
@@ -154,16 +155,19 @@ def should_pass_dq_gate(*, partition_date: date, **context: object) -> bool:
             service=_SERVICE,
             partition_date=str(partition_date),
         )
-        return False
+        raise
 
     passed = summary["status"] == "passed"
+    reason = "dq_passed" if passed else f"dq_failed:{','.join(summary['failed_checks'])}"
     log_gate_decision(
         _GATE_ID,
         allowed=passed,
-        reason="dq_passed" if passed else f"dq_failed:{','.join(summary['failed_checks'])}",
+        reason=reason,
         service=_SERVICE,
         partition_date=str(partition_date),
         rows=summary["rows"],
         checks=summary["checks"],
     )
-    return passed
+    if not passed:
+        raise ValueError(f"DQ Gate failed: {reason}")
+    return True

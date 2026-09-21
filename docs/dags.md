@@ -60,7 +60,7 @@ upload_s_market_ohlcv_history → purge_s_market_ohlcv_history
 | Gate | 통과 조건 | skip 사유 |
 | :--- | :--- | :--- |
 | `gate_trading_day` | 거래일 (`d_market_calendar.is_market_open`) | `not_a_trading_day`, `missing_calendar_row`, `missing_logical_date` |
-| `gate_dq_s_market_ohlcv_history` | 추출 Parquet DQ 통과 | `missing_extracted_parquet`, `DQ Gate failed: ...` |
+| `gate_dq_s_market_ohlcv_history` | 추출 Parquet DQ 통과 | skip이 아닌 **태스크 failed**로 처리(재시도 없음): `missing_extracted_parquet`, `DQ Gate failed: ...` |
 | `gate_glue_registration_s_market_ohlcv_history` | `run_glue_registration=true` | `glue_registration_disabled_by_config` |
 
 * DQ Gate는 PySpark가 아닌 **pandas**로 구현 (1일 배치 규모 고려).
