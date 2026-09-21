@@ -150,9 +150,10 @@ with DAG(
         task_id="extract_s_market_ohlcv_history",
         python_callable=partial(_run_with_partition_date, extract_ohlcv),
     )
-    gate_dq = ShortCircuitOperator(
+    gate_dq = PythonOperator(
         task_id="gate_dq_s_market_ohlcv_history",
         python_callable=partial(_run_gate_with_partition_date, should_pass_dq_gate),
+        retries=0,
     )
     convert_parquet_task = PythonOperator(
         task_id="convert_s_market_ohlcv_history",
