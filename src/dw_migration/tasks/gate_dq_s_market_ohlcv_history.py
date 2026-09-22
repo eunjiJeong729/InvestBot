@@ -28,6 +28,9 @@ _REQUIRED_COLUMNS = (
 _KEY_COLUMNS = ("asset_type", "asset_code", "market_time")
 _SESSION_START = time(9, 0)
 _SESSION_END = time(15, 30)
+# dag_market.py의 _OHLCV_SKIP_START/_OHLCV_SKIP_END와 동기화 필요
+_CLOSING_AUCTION_START = time(15, 21)
+_CLOSING_AUCTION_END = time(15, 29)
 _BAR_MINUTES = 5
 
 
@@ -94,34 +97,38 @@ def _run_dq_checks(df: pd.DataFrame, *, max_gap_ratio: float = 0.5) -> dict[str,
 
 
 def _max_gap_ratio(df: pd.DataFrame) -> float:
-    """종목별 5분봉 연속성 갭 비율의 최댓값."""
+    """종목별 5분봉 연속성 갭 비율의 최댓값 (세션 09:00~15:30 전체 기준, 동시호가 구간 제외)."""
     work = df.copy()
     work["market_time"] = pd.to_datetime(work["market_time"])
+    work = work[work["market_time"].notna()]
     worst = 0.0
     for _, group in work.groupby(["asset_type", "asset_code"], sort=False):
-        times = sorted(
-            t for t in group["market_time"]
-            if _SESSION_START <= t.time() <= _SESSION_END
-        )
-        if len(times) < 2:
+        if group.empty:
             continue
-        expected = _expected_timestamps(times[0], times[-1])
+        session_date = group["market_time"].iloc[0].date()
+        expected = _expected_timestamps(session_date)
         if not expected:
             continue
-        actual = {t.replace(second=0, microsecond=0) for t in times}
+        actual = {
+            t.replace(second=0, microsecond=0)
+            for t in group["market_time"]
+            if _SESSION_START <= t.time() <= _SESSION_END
+        }
         missing = len(expected - actual)
         ratio = missing / len(expected)
         worst = max(worst, ratio)
     return worst
 
 
-def _expected_timestamps(start: datetime, end: datetime) -> set[datetime]:
-    cursor = start.replace(second=0, microsecond=0)
-    end = end.replace(second=0, microsecond=0)
+def _expected_timestamps(session_date: date) -> set[datetime]:
+    """주어진 날짜의 세션 전체 5분봉 슬롯 (동시호가 구간 제외)."""
+    cursor = datetime.combine(session_date, _SESSION_START)
+    end = datetime.combine(session_date, _SESSION_END)
     step = timedelta(minutes=_BAR_MINUTES)
     expected: set[datetime] = set()
     while cursor <= end:
-        if _SESSION_START <= cursor.time() <= _SESSION_END:
+        slot = cursor.time()
+        if not (_CLOSING_AUCTION_START <= slot <= _CLOSING_AUCTION_END):
             expected.add(cursor)
         cursor += step
     return expected
