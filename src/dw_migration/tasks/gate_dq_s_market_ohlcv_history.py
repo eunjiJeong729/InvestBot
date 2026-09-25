@@ -32,6 +32,7 @@ _SESSION_END = time(15, 30)
 _CLOSING_AUCTION_START = time(15, 21)
 _CLOSING_AUCTION_END = time(15, 29)
 _BAR_MINUTES = 5
+_LATE_CLOSE_TIME = time(15, 35)  # 15:30 마감봉 확정값이 지연 체결될 경우 — gap_check에서만 15:30 대체값으로 체크함
 
 
 def _run_dq_checks(df: pd.DataFrame, *, max_gap_ratio: float = 0.5) -> dict[str, Any]:
@@ -110,9 +111,13 @@ def _max_gap_ratio(df: pd.DataFrame) -> float:
         if not expected:
             continue
         actual = {
-            t.replace(second=0, microsecond=0)
+            (
+                datetime.combine(t.date(), _SESSION_END)
+                if t.time() == _LATE_CLOSE_TIME
+                else t.replace(second=0, microsecond=0)
+            )
             for t in group["market_time"]
-            if _SESSION_START <= t.time() <= _SESSION_END
+            if t.time() == _LATE_CLOSE_TIME or _SESSION_START <= t.time() <= _SESSION_END
         }
         missing = len(expected - actual)
         ratio = missing / len(expected)

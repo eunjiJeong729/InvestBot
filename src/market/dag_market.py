@@ -35,7 +35,7 @@ _MARKET_TZ = _MARKET.timezone
 _SCHEDULE_STEP_MINUTES = _MARKET.schedule_step_minutes
 _DAG_SCHEDULE = "*/5 8-15 * * 1-5"  # 평일 08:00~16:00, 5분 슬롯 (물리 트리거 시각 기준)
 _OHLCV_START = time(9, 0)  # OHLCV 수집 시작
-_OHLCV_END = time(15, 30)  # OHLCV 수집 종료
+_OHLCV_END = time(15, 35)  # 장 마감(15:30) 직후 한 슬롯을 더 열어 마지막 봉(15:30)의 확정값을 UPSERT로 받기 위함
 _OHLCV_SKIP_START = time(15, 21)  # 장 마감 동호가 구간 — 신규 5분봉 없음
 _OHLCV_SKIP_END = time(15, 29)
 _ASSET_MASTER_RUN = time(8, 10)  # 종목 마스터 정규 갱신 시각
@@ -184,7 +184,7 @@ def should_run_market_ohlcv(**context: object) -> bool:
 
     | 조건 | 동작 |
     | 비거래일 | skip (``d_market_calendar``) |
-    | 거래일 09:00~15:30 | 허용 |
+    | 거래일 09:00~15:35 | 허용 |
     | 15:21~15:29 | skip (동호가 구간, 신규 5분봉 없음) |
     | 장외 | skip |
 
@@ -296,7 +296,7 @@ default_args = {
 
 # --- DAG 정의 ---
 # asset master: gate → fetch (독립 브랜치, 08:10~08:55)
-# OHLCV: gate_market_window → gate_asset_master_ready → fetch → history (09:00~15:30)
+# OHLCV: gate_market_window → gate_asset_master_ready → fetch → history (09:00~15:35)
 with DAG(
     dag_id="dag_market",
     description="종목 마스터 + 장중 5분봉 OHLCV 수집",

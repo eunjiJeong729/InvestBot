@@ -12,7 +12,7 @@ InvestBot은 **실시간 매매 집행의 정시성**과 **대용량 과거 시�
   * 5분 주기로 동작하며, 최신 시세(`s_market_ohlcv`)는 30분 슬라이딩 윈도우로, 누적 이력(`s_market_ohlcv_history`)은 장 마감 후 S3 이관 전까지만 MySQL에 보관합니다.
   * DB 메모리 및 I/O 부하를 최적화하여 트레이딩 런타임 상태 판단 및 주문 실행을 타이트하게 수행합니다.
 * **분석 영역 (Data Lakehouse Layer - AWS S3 OLAP)**:
-  * 하루 1회 장 마감 후(15:40 KST) 배치 작업을 통해 pandas 기반의 **Data Quality Gate**를 거친 데이터만 이관합니다.
+  * 하루 1회 장 마감 후(15:45 KST) 배치 작업을 통해 pandas 기반의 **Data Quality Gate**를 거친 데이터만 이관합니다.
   * 장기 시계열 데이터를 영구 보존하고 전략 성과 분석 및 AI 모델 학습을 위한 데이터 마트를 구축합니다.
 
 ---
@@ -42,7 +42,7 @@ s_market_ohlcv
 ▼ (UPSERT)
 s_market_ohlcv_history (MySQL, 이관 전까지 당일 보관)
 │
-├─ (Daily 15:40 KST) ──► [Step 6: DQ Gate (pandas)] ──► dw_trading_bronze (S3 적재)
+├─ (Daily 15:45 KST) ──► [Step 6: DQ Gate (pandas)] ──► dw_trading_bronze (S3 적재)
 └─ (ETL 성공 확인 후)──► [Step 7: MySQL Purge] (이관 완료한 당일 partition_date만 DROP)
 ```
 
@@ -102,5 +102,5 @@ S3 DW 적재 전 배치 파이프라인에서 다음 4가지 핵심 조건 검�
 - Gap Check: 거래 시간 내 5분 단위 연속성 유실(Gap) 비율 모니터링
 
 ### 2) MySQL Purge 정책
-- 실행 시점: dag_dw_migration이 평일 1회(장마감 직후, 15:40 KST) 실행되며, 그 run이 방금 S3로 이관 완료한 당일 partition_date 파티션만을 대상으로 합니다.
+- 실행 시점: dag_dw_migration이 평일 1회(장마감 직후, 15:45 KST) 실행되며, 그 run이 방금 S3로 이관 완료한 당일 partition_date 파티션만을 대상으로 합니다.
 - 실행 방식: s_market_ohlcv_history 파티션 중 작업일 partition_date만 수행. 아직 S3로 이관되지 않은 과거 파티션은 대상에서 제외합니다.(미이관 데이터 유실 위험 차단)
