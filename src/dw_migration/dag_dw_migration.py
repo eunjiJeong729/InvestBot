@@ -35,7 +35,7 @@ if not _CONFIG_PATH:
 init_runtime_config(_CONFIG_PATH)
 
 _DW = load_dag_dw_migration_settings()
-_DAG_SCHEDULE = "40 15 * * 1-5"  # 평일 15:40 KST — 장 마감 직후 DW 이관
+_DAG_SCHEDULE = "45 15 * * 1-5"  # 평일 15:45 KST — dag_market 마지막 run(실행 15:35) 종료 후 DW 이관
 _SERVICE = "dw_migration"
 
 

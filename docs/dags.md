@@ -20,7 +20,7 @@ gate_market_window → gate_asset_master_ready → fetch_s_market_ohlcv → inse
 | Gate | 통과 조건 | skip 사유 |
 | :--- | :--- | :--- |
 | `gate_fetch_d_market_asset_master` | 거래일 & (08:10 정규 실행 또는 08:15~08:55 당일 미갱신 시 재시도) | `not_a_trading_day`, `missing_calendar_row`, `outside_asset_master_window`, `asset_master_already_updated_today` |
-| `gate_market_window` | 거래일 & 09:00~15:30, 15:21부터 15:29(동호가) 제외 | `not_a_trading_day`, `missing_calendar_row`, `outside_market_window`, `closing_duplicate_window_1521_1529` |
+| `gate_market_window` | 거래일 & 09:00~15:35, 15:21부터 15:29(동호가) 제외 | `not_a_trading_day`, `missing_calendar_row`, `outside_market_window`, `closing_duplicate_window_1521_1529` |
 | `gate_asset_master_ready` | 09:00 이후 & 당일 `d_market_asset_master` 갱신 완료 | `before_ohlcv_window_0900`, `asset_master_stale` |
 
 * 거래일 판단(`not_a_trading_day`)은 `weekday()` 계산이 아니라 `d_market_calendar`
@@ -30,12 +30,14 @@ gate_market_window → gate_asset_master_ready → fetch_s_market_ohlcv → inse
   (XKRX)로 계산해 `scripts/load_d_market_calendar.py`를 연 1회 또는 임시공휴일
   발표 시 수동 실행해 채운다. 해당 날짜 행이 없으면 게이트는
   `missing_calendar_row`로 skip하며, 이는 재적재가 필요하다는 신호다.
+* 15:30~15:35 구간은 실제 세션 시간이 아니라, 마지막 봉(15:30)의 확정값을
+  UPSERT로 수집하기 위해 추가로 열어둔 구간이다.
 
 ---
 
 ## 2. `dag_dw_migration` (DW 이관 — MySQL → S3 Bronze)
 
-* **스케줄**: `40 15 * * 1-5` (평일 15:40 KST — 장 마감 직후)
+* **스케줄**: `45 15 * * 1-5` (평일 15:45 KST — 장 마감 직후)
 * **Task Workflow**:
 ```text
 gate_trading_day → extract_s_market_ohlcv_history → gate_dq_s_market_ohlcv_history

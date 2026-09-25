@@ -14,7 +14,7 @@
 | :--- | :--- | :--- | :---: | :--- |
 | **마켓 데이터 공급** | `dag_market` | 평일 08:00~15:55 KST (5분 슬롯) | **`완료`** | Kiwoom API 종목 마스터 갱신 및 5분봉 OHLCV 수집/이력 적재 |
 | **전략 분석 및 매매** | `dag_trading` | Event-driven | `예정` | 계좌 정보 수집, AI 밴드 분석 및 매수/매도 시그널 주문 집행 |
-| **DW 이관 (S3)** | `dag_dw_migration` | 평일 15:40 KST (장 마감 직후) | **`진행중`** | pandas DQ Gate 검증 후 S3 Bronze 적재 및 Glue 파티션 등록 |
+| **DW 이관 (S3)** | `dag_dw_migration` | 평일 15:45 KST (장 마감 직후) | **`진행중`** | pandas DQ Gate 검증 후 S3 Bronze 적재 및 Glue 파티션 등록 |
 
 👉 자세한 DAG 동작 등 세부 사항은 [docs/dags.md](docs/dags.md)를 참고하세요.
 
@@ -35,7 +35,7 @@ Kiwoom API
 │                               ▼ Event-Driven Trigger
 │                          [dag_trading] ──► 계좌 상태/밴드 분석/주문 집행
 │
-└─ (평일 15:40 KST)     ───► [Data Quality Gate (pandas)]               ──► dw_trading_bronze (S3)
+└─ (평일 15:45 KST)     ───► [Data Quality Gate (pandas)]               ──► dw_trading_bronze (S3)
 ```
 👉 자세한 데이터 아키텍처 및 네이밍 규칙은 [docs/architecture.md](docs/architecture.md)를 참고하세요.
 
