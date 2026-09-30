@@ -7,6 +7,7 @@ from datetime import date, datetime, time, timedelta
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator, ShortCircuitOperator
+from airflow.timetables.trigger import CronTriggerTimetable
 
 from infra.db.rdbms.mysql import MySQLClient
 from src.common.entity import DMarketAssetMaster
@@ -27,11 +28,12 @@ if not _CONFIG_PATH:
 init_runtime_config(_CONFIG_PATH)
 
 # --- 스케줄 / 장 운영 시간 상수 ---
-# timezone / schedule_step_minutes 는 configs 의 airflow.environment / airflow.dag.market 에서 로드
+# timezone 은 configs 의 airflow.environment 에서 로드
 _MARKET = load_market_settings()
 _MARKET_TZ = _MARKET.timezone
-_SCHEDULE_STEP_MINUTES = _MARKET.schedule_step_minutes
-_DAG_SCHEDULE = "*/5 8-15 * * 1-5"  # 평일 08:00~16:00, 5분 슬롯 (물리 트리거 시각 기준)
+_DAG_SCHEDULE = CronTriggerTimetable(
+    "*/5 8-15 * * 1-5", timezone=str(_MARKET_TZ)
+)  # 평일 08:00~15:55 트리거, logical_date = 실행 시각(CronTriggerTimetable)
 _OHLCV_START = time(9, 0)  # OHLCV 수집 시작
 _OHLCV_END = time(15, 35)  # 장 마감(15:30) 직후 한 슬롯을 더 열어 마지막 봉(15:30)의 확정값을 UPSERT로 받기 위함
 _OHLCV_SKIP_START = time(15, 21)  # 장 마감 동호가 구간 — 신규 5분봉 없음
@@ -41,18 +43,15 @@ _ASSET_MASTER_RETRY_UNTIL = time(8, 55)  # 08:10 run 누락 시 09:00 OHLCV 전�
 
 
 def _slot_from_context(context: object) -> tuple[datetime, time] | None:
-    """Airflow task context에서 물리적 트리거 시각 기준 슬롯을 추출한다.
+    """Airflow task context에서 슬롯(KST)을 추출한다.
 
-    슬롯 = data_interval_end(물리 실행 시각) 기준이다. */5 고정 간격 스케줄이므로
-    data_interval_end = logical_date + 스케줄 간격(_SCHEDULE_STEP_MINUTES)과 동일하다.
-    Airflow UI의 logical_date 라벨과 실제 슬롯 값은 스케줄 간격만큼 차이가 난다
-    (예: UI 13:55 run → slot 14:00).
+    CronTriggerTimetable 적용으로 logical_date = 실제 실행 시각이므로 별도 보정이 필요 없다.
     """
     base = context_logical_date_in_timezone(context, _MARKET_TZ)
     if base is None:
         return None
 
-    slot_kst = (base + timedelta(minutes=_SCHEDULE_STEP_MINUTES)).replace(second=0, microsecond=0)
+    slot_kst = base
     slot_time = slot_kst.time().replace(second=0, microsecond=0)
     return slot_kst, slot_time
 

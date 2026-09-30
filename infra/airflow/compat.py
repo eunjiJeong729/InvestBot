@@ -21,5 +21,5 @@ def require_airflow():
     except ImportError as exc:
         raise ImportError(
             "Apache Airflow is not installed. "
-            "Run: pip install -r requirements-airflow.txt"
+            "Run: pip install -r requirements.txt"
         ) from exc

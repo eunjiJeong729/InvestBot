@@ -8,6 +8,7 @@ from functools import partial
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator, ShortCircuitOperator
+from airflow.timetables.trigger import CronTriggerTimetable
 
 from infra.db.rdbms.mysql import MySQLClient
 from src.common.utils.airflow.config import (
@@ -35,7 +36,9 @@ if not _CONFIG_PATH:
 init_runtime_config(_CONFIG_PATH)
 
 _DW = load_dag_dw_migration_settings()
-_DAG_SCHEDULE = "45 15 * * 1-5"  # 평일 15:45 KST — dag_market 마지막 run(실행 15:35) 종료 후 DW 이관
+_DAG_SCHEDULE = CronTriggerTimetable(
+    "45 15 * * 1-5", timezone=str(_DW.timezone)
+)  # 평일 15:45 KST — dag_market 마지막 수집 슬롯(15:35) 이후
 _SERVICE = "dw_migration"
 
 
