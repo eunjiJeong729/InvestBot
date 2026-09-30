@@ -2,7 +2,7 @@
 
 ## 1. `dag_market` (마켓 데이터 공급)
 
-* **스케줄**: `*/5 8-15 * * 1-5` (평일 08:00~15:55 KST, 5분 슬롯)
+* **스케줄**: `CronTriggerTimetable("*/5 8-15 * * 1-5")` (평일 08:00~15:55 KST, 5분 슬롯. `logical_date` = 실행 시각)
 * **Task Workflow**:
 ```text
 gate_fetch_d_market_asset_master → fetch_d_market_asset_master
@@ -37,7 +37,7 @@ gate_market_window → gate_asset_master_ready → fetch_s_market_ohlcv → inse
 
 ## 2. `dag_dw_migration` (DW 이관 — MySQL → S3 Bronze)
 
-* **스케줄**: `45 15 * * 1-5` (평일 15:45 KST — 장 마감 직후)
+* **스케줄**: `CronTriggerTimetable("45 15 * * 1-5")` (평일 15:45 KST — 장 마감 직후. `logical_date` = 실행 시각)
 * **Task Workflow**:
 ```text
 gate_trading_day → extract_s_market_ohlcv_history → gate_dq_s_market_ohlcv_history
