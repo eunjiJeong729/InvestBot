@@ -30,7 +30,7 @@ Kiwoom API
 ├─ (5분 주기)           ───► s_market_ohlcv (30분 Sliding Window Staging)
 │                               │
 │                               ▼ (UPSERT)
-│                          s_market_ohlcv_history (48 히스토리)
+│                          s_market_ohlcv_history (이관 전까지 당일 보관)
 │                               │
 │                               ▼ Event-Driven Trigger
 │                          [dag_trading] ──► 계좌 상태/밴드 분석/주문 집행
@@ -159,20 +159,14 @@ export INVESTBOT_CONFIG=configs/dev/debug.json
 
 ### Airflow 로컬 실행
 
-`configs/dev/debug.json`의 Airflow env를 적용한 뒤 standalone을 기동합니다.
+`configs/dev/debug.json`의 Airflow env를 적용해 스케줄러+웹서버를 기동합니다.
 
 ```bash
-export INVESTBOT_CONFIG=configs/dev/debug.json
-
-# config → os.environ 반영
-python -c "from src.common.utils.config import init_runtime_config; init_runtime_config('configs/dev/debug.json')"
-
-mkdir -p data/airflow
-airflow db migrate
-airflow standalone
+python scripts/run_airflow_ui.py --config configs/dev/debug.json --no-triggerer
 ```
 
 - UI: http://localhost:8080
 - DAGs folder: `src/` (`AIRFLOW__CORE__DAGS_FOLDER`)
 - `AIRFLOW_HOME`: `data/airflow/` (로컬 생성, gitignore)
+- `--no-triggerer`: deferrable operator를 쓰지 않으므로 triggerer 없이 scheduler+webserver만 기동 (메모리 절약)
 
