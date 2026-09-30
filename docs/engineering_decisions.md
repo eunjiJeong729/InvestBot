@@ -274,3 +274,23 @@
 * **Impact & Reliability (성과 및 시스템 안정성)**
   * 새벽 시간대 인스턴스 추가 기동 없이 하루 가동 시간대를 하나로 통합. EC2 컴퓨팅 비용 최소화.
   * 데이터 정합성(당일 데이터 불변 시점)과 비용 최적화가 동시에 만족되는 스케줄로 재설계.
+
+---
+
+## 13. Airflow 스케줄 방식 변경: cron → CronTriggerTimetable
+
+* **Context & Constraints (배경 및 제약 조건)**
+  * Airflow 기본 cron 스케줄은 구간이 끝난 뒤 실행되는 익일 처리 방식이라, 12번 결정으로 당일 15:45에 이관하도록 바꾼 `dag_dw_migration`에서는 월요일 데이터가 화요일에 이관되는 구조가 됨.
+  * `dag_market`은 5분 고정 간격이라 `logical_date`에 5분을 더해 실제 수집 시각을 구하는 방식으로 맞춰왔음.
+
+* **Engineering Decision & Trade-off (의사결정 및 트레이드오프)**
+  * 당일 처리 구조에는 지정한 시각에 바로 실행하는 `CronTriggerTimetable`이 맞다고 판단함.
+  * `dag_market`도 "이 시각에 이 슬롯 수집"에 가까운 작업이라 같은 방식으로 통일함.
+
+* **Technical Solution (기술적 해결책)**
+  1. 두 DAG의 스케줄을 `CronTriggerTimetable`로 변경. 실행 시각(cron 식)은 그대로 유지.
+  2. `dag_market`에서 5분을 더하던 보정 코드를 제거. 5분봉 생성 로직은 그대로 둠.
+
+* **Impact & Reliability (성과 및 시스템 안정성)**
+  * mig DAG가 당일 데이터를 당일 15:45에 이관하게 되어, 12번에서 계획한 "장 마감 후 이관 → 인스턴스 중지" 운영이 가능해짐.
+  * `dag_market`은 수집 결과는 그대로이면서 보정 코드가 없어졌고, Airflow UI의 run 시각이 실제 수집 시각과 같아져 로그 확인이 쉬워짐.
