@@ -29,16 +29,13 @@ SCHEDULE_OHLCV_BAR_COUNT = 7  # run 슬롯 + 이전 6개 5분봉 (예: 12:30 →
 def resolve_schedule_slot_kst(context: object | None = None) -> datetime:
     """DAG run 슬롯을 KST datetime으로 반환한다 (fetch task 수집 anchor).
 
-    Airflow context의 logical_date를 직접 읽는다. 고정 간격 스케줄이므로
-    물리 트리거 시각 = logical_date + airflow.dag.market.schedule_step_minutes.
+    CronTriggerTimetable 적용으로 Airflow context의 logical_date가 곧 실제 실행 시각(슬롯)이다.
     context 없음 (CLI 테스트 등): 현재 시각을 step 단위 floor.
     """
     market = load_market_settings()
     base = context_logical_date_in_timezone(context, market.timezone)
     if base is not None:
-        return (base + timedelta(minutes=market.schedule_step_minutes)).replace(
-            second=0, microsecond=0
-        )
+        return base
 
     now = datetime.now(market.timezone)
     floored = (now.minute // market.schedule_step_minutes) * market.schedule_step_minutes
