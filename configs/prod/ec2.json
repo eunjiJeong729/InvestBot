@@ -60,7 +60,6 @@
         "table_name": "s_market_ohlcv_history",
         "s3_object_name": "data.parquet",
         "s3": {
-          "bucket": "TODO-prod-bucket-name",
           "region": "ap-northeast-2",
           "prefix": "dw_trading_bronze"
         },

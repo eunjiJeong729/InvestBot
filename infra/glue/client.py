@@ -107,12 +107,13 @@ class GlueClient:
             },
         )
 
-    def batch_create_partition(self, *, partition_values: list[str], s3_location: str) -> None:
-        self.client.batch_create_partition(
-            DatabaseName=self.config.database,
-            TableName=self.config.table,
-            PartitionInputList=[
-                {
+    def create_partition(self, *, partition_values: list[str], s3_location: str) -> None:
+        """단건 등록."""
+        try:
+            self.client.create_partition(
+                DatabaseName=self.config.database,
+                TableName=self.config.table,
+                PartitionInput={
                     "Values": partition_values,
                     "StorageDescriptor": {
                         "Location": s3_location,
@@ -122,9 +123,10 @@ class GlueClient:
                             "SerializationLibrary": "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe",
                         },
                     },
-                }
-            ],
-        )
+                },
+            )
+        except self.client.exceptions.AlreadyExistsException:
+            pass
 
     def partition_exists(self, partition_values: list[str]) -> bool:
         try:
