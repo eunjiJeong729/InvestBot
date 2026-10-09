@@ -89,5 +89,5 @@ else
 fi
 
 echo "[setup.sh] docker compose 빌드 및 기동 (profile=${PROFILE})"
-sudo docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up --build -d
+sudo INVESTBOT_CONFIG="$INVESTBOT_CONFIG" docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up --build -d
 echo "[setup.sh] ${PROFILE} 환경 준비 완료. INVESTBOT_CONFIG=${INVESTBOT_CONFIG}"

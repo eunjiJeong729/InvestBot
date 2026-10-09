@@ -82,7 +82,7 @@ class RegisterGluePartitionSMarketOhlcvHistory(Task):
                 if glue.partition_exists(partition_values):
                     logger.info("glue partition already exists partition_date=%s", partition_str)
                     return 0
-                glue.batch_create_partition(partition_values=partition_values, s3_location=location)
+                glue.create_partition(partition_values=partition_values, s3_location=location)
             logger.info(
                 "registered glue partition database=%s table=%s partition_date=%s location=%s",
                 glue_mapping["database"],

@@ -165,7 +165,11 @@ def _dag_dw_migration_section() -> dict[str, Any]:
 
 
 def load_s3_config() -> dict[str, Any]:
-    """런타임 config ``airflow.dag.dw_migration.s3`` + (있으면) ``secrets.aws`` 병합."""
+    """런타임 config ``airflow.dag.dw_migration.s3`` + (있으면) ``secrets.aws`` 병합.
+
+    버킷명은 공개 레포에 올리지 않는다. config에 ``s3.bucket``이 없고 secrets.aws에
+    ``aws_id``(AWS 계정 ID)가 있으면 ``investbot-data-lake-{profile}-{aws_id}``로 조합한다.
+    """
     section = _dag_dw_migration_section()
     s3 = dict(section.get("s3") or {})
     config_path = os.environ.get("INVESTBOT_CONFIG", "").strip()
@@ -178,6 +182,10 @@ def load_s3_config() -> dict[str, Any]:
         for key in ("bucket", "region", "prefix", "endpoint_url", "aws_access_key_id", "aws_secret_access_key"):
             if key not in s3 and aws.get(key) is not None:
                 s3[key] = aws[key]
+        aws_id = str(aws.get("aws_id") or "").strip()
+        if "bucket" not in s3 and aws_id:
+            profile = str(config.get("profile") or "").strip()
+            s3["bucket"] = f"investbot-data-lake-{profile}-{aws_id}"
     return s3
 
 
