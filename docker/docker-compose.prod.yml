@@ -20,6 +20,7 @@ services:
       - ../src:/app/src:ro
       - ../.secrets:/app/.secrets:ro
       - ../data:/app/data
+      - ../docker/entrypoint.sh:/app/entrypoint.sh:ro
     command: ["python", "scripts/run_airflow_ui.py", "--config", "${INVESTBOT_CONFIG:?INVESTBOT_CONFIG is required}", "--no-triggerer"]
     stop_grace_period: 40s
     restart: unless-stopped
