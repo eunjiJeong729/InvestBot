@@ -14,7 +14,7 @@
 | :--- | :--- | :--- | :---: | :--- |
 | **마켓 데이터 공급** | `dag_market` | 평일 08:00~15:55 KST (5분 슬롯) | **`완료`** | Kiwoom API 종목 마스터 갱신 및 5분봉 OHLCV 수집/이력 적재 |
 | **전략 분석 및 매매** | `dag_trading` | Event-driven | `예정` | 계좌 정보 수집, AI 밴드 분석 및 매수/매도 시그널 주문 집행 |
-| **DW 이관 (S3)** | `dag_dw_migration` | 평일 15:45 KST (장 마감 직후) | **`진행중`** | pandas DQ Gate 검증 후 S3 Bronze 적재 및 Glue 파티션 등록 |
+| **DW 이관 (S3)** | `dag_dw_migration` | 평일 15:45 KST (장 마감 직후) | **`완료`** | pandas DQ Gate 검증 후 S3 Bronze 적재 및 Glue 파티션 등록 |
 
 👉 자세한 DAG 동작 등 세부 사항은 [docs/dags.md](docs/dags.md)를 참고하세요.
 
@@ -45,7 +45,7 @@ Kiwoom API
 
 * **Language & Core**: Python 3.12, Apache Airflow 2.x, pandas, pyarrow
 * **Database & Storage**: MySQL 8.x (OLTP), AWS S3 (Data Lakehouse)
-* **API & Infra**: Kiwoom REST API, Docker, AWS boto3(운영환경), moto(로컬 AWS 목킹), Dev Containers(개발환경)
+* **API & Infra**: Kiwoom REST API, Docker, AWS EC2 · IAM Role · boto3, moto(로컬 AWS 목킹), Dev Containers(개발환경)
 
 ```text
 .
@@ -62,6 +62,7 @@ Kiwoom API
 │   └── dw_migration/   # dag_dw_migration 소스 (DAG ID: dag_dw_migration)
 ├── docker/           # Dockerfile, compose, entrypoint
 ├── scripts/          # 실행 헬퍼
+├── setup.sh          # EC2 배포 (Docker 설치 + compose 기동)
 ├── requirements.txt
 └── requirements-dev.txt  # devcontainer용 (moto 포함)
 ```
@@ -103,15 +104,14 @@ Kiwoom API
 
 - Docker (Dev Container 사용 시)
 - MySQL 8.x
-- Kiwoom Open API 앱 키 (`KIWOOM_APP_KEY`, `KIWOOM_SECRET_KEY`)
+- Kiwoom REST API 앱 키 (`KIWOOM_APP_KEY`, `KIWOOM_SECRET_KEY`)
 
 ### 1. 클론
 
 ```bash
 git clone <repository-url>
-cd investbot
+cd InvestBot
 pip install -r requirements-dev.txt   # devcontainer / 로컬 개발
-# pip install -r requirements.txt    # EC2 prod 배포 시
 ```
 
 ### 2. Secrets 설정
@@ -122,12 +122,14 @@ example 파일을 복사한 뒤 값을 채웁니다.
 mkdir -p .secrets/dev/debug
 cp .secrets/mysql.example.json .secrets/dev/debug/mysql.json
 cp .secrets/broker.example.json .secrets/dev/debug/broker.json
+cp .secrets/aws.example.json .secrets/dev/debug/aws.json
 ```
 
 | 파일 | 용도 |
 |---|---|
 | `mysql.json` | MySQL 접속 정보 |
 | `broker.json` | Kiwoom API (`base_url`, `app_key`, `app_secret`, `account_no`) |
+| `aws.json` | AWS 접속 정보 (dev: moto용 더미 값 / prod: 버킷명) |
 
 ### 3. Dev Container (권장)
 

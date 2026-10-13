@@ -54,7 +54,7 @@ upload_s_market_ohlcv_history → purge_s_market_ohlcv_history
 | `gate_dq_s_market_ohlcv_history` | pandas DQ Gate (Null/중복/범위/시간 갭). 실패 시 downstream 차단 |
 | `convert_s_market_ohlcv_history` | pyarrow 스키마 정규화 → `data.parquet` + S3 manifest |
 | `upload_s_market_ohlcv_history` | 1일 1 PUT |
-| `register_glue_partition_s_market_ohlcv_history` | Glue Catalog |
+| `register_glue_partition_s_market_ohlcv_history` | Glue Data Catalog에 당일 파티션 등록 (테이블이 없으면 생성, 이미 등록된 파티션은 skip) |
 | `purge_s_market_ohlcv_history` | S3 이관 완료한 ``partition_date`` 파티션만 MySQL `DROP PARTITION` |
 
 ### Gate 정책 (KST, `logical_date` 기준)
@@ -68,6 +68,7 @@ upload_s_market_ohlcv_history → purge_s_market_ohlcv_history
 * DQ Gate는 PySpark가 아닌 **pandas**로 구현 (1일 배치 규모 고려).
 * S3/Glue 파티션 키는 `partition_year → partition_month → partition_date` 3단 계층. parquet는 하루 1파일.
 * devcontainer에서는 **moto_server** (`http://moto:5000`)로 S3 업로드·Glue 파티션 등록까지 E2E 검증 가능.
+* EC2(Docker)에서 실제 S3 업로드 및 Glue 파티션 등록까지 연동 검증 완료.
 * E2E 테스트는 `s_market_ohlcv_history_test` 테이블에서 실행되며 실 데이터(`s_market_ohlcv_history`)는 전혀 조회/수정되지 않음.
 * ⚠️ **운영 주의사항**: `INVESTBOT_CONFIG`는 DAG import 시점에 1회 로드 및 고정되며 실 데이터 `s_market_ohlcv_history`를 바라보는 라이브 config로 기동된 Airflow에서는 이 DAG를 수동 트리거할 경우 실 데이터 파티션을 그대로 `DROP`할 수 있음.
 * 안전한 검증 절차: ① `export INVESTBOT_CONFIG=configs/dev/e2e.json` 후 Airflow를 기동 → ② `python scripts/seed_e2e_test_data.py`로 더미 데이터 생성 → ③ Airflow UI에서 `dag_dw_migration`을 수동 트리거.
