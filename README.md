@@ -13,7 +13,7 @@
 | 서비스 도메인 | 대표 DAG ID | 스케줄 주기 | 현재 상태 | 주요 역할 |
 | :--- | :--- | :--- | :---: | :--- |
 | **마켓 데이터 공급** | `dag_market` | 평일 08:00~15:55 KST (5분 슬롯) | **`완료`** | Kiwoom API 종목 마스터 갱신 및 5분봉 OHLCV 수집/이력 적재 |
-| **전략 분석 및 매매** | `dag_trading` | Event-driven | `예정` | 계좌 정보 수집, AI 밴드 분석 및 매수/매도 시그널 주문 집행 |
+| **전략 분석 및 매매** | `dag_trading` | Event-driven | **`진행중`** | 계좌 정보 수집, AI 밴드 분석 및 매수/매도 시그널 주문 집행 |
 | **DW 이관 (S3)** | `dag_dw_migration` | 평일 15:45 KST (장 마감 직후) | **`완료`** | pandas DQ Gate 검증 후 S3 Bronze 적재 및 Glue 파티션 등록 |
 
 👉 자세한 DAG 동작 등 세부 사항은 [docs/dags.md](docs/dags.md)를 참고하세요.
@@ -58,8 +58,8 @@ Kiwoom API
 ├── src/
 │   ├── common/       # entity, config, logging, 공통 API client(Kiwoom 등) 유틸
 │   ├── market/       # [완료] dag_market 및 fetch/insert task
-│   ├── trading/      # [예정] dag_trading 및 분석기/주문 로직
-│   └── dw_migration/   # dag_dw_migration 소스 (DAG ID: dag_dw_migration)
+│   ├── trading/      # [진행중] dag_trading 및 분석기/주문 로직
+│   └── dw_migration/ # [완료] dag_dw_migration 소스 (DAG ID: dag_dw_migration)
 ├── docker/           # Dockerfile, compose, entrypoint
 ├── scripts/          # 실행 헬퍼
 ├── setup.sh          # EC2 배포 (Docker 설치 + compose 기동)

@@ -7,21 +7,12 @@ from datetime import date
 
 from infra.db.rdbms.mysql import MySQLClient
 from src.common.utils.airflow.config import load_dag_dw_migration_settings, load_mysql_config, repo_root
-from src.common.utils.db.db_partition import existing_partition_names
+from src.common.utils.db.db_partition import existing_partition_names, partition_date_from_name
 from src.common.utils.airflow.task_log import log_task_run
 from src.dw_migration.tasks import Task
 
 _SERVICE = "dw_migration"
 _RUNS_ROOT = repo_root() / "data" / "dw_migration" / "runs"
-
-
-def _partition_date_from_name(name: str) -> date | None:
-    if not name.startswith("p_"):
-        return None
-    try:
-        return date.fromisoformat(name[2:].replace("_", "-"))
-    except ValueError:
-        return None
 
 
 def _purge_local_run_dirs(*, cutoff: date, logger: object) -> int:
@@ -66,7 +57,7 @@ class PurgeSMarketOhlcvHistory(Task):
                 table = settings.source_table
                 existing = existing_partition_names(db, conn, table)
                 for name in sorted(existing):
-                    part_date = _partition_date_from_name(name)
+                    part_date = partition_date_from_name(name)
                     # 정확히 partition_date와 일치하는 파티션만 DROP — 이 run이
                     # 방금 S3로 이관 완료한 그 날짜만 지운다. 그 외 날짜는 아직
                     # 이관되지 않았을 수 있으므로 절대 건드리지 않는다.

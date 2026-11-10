@@ -9,6 +9,7 @@ from src.common.entity import SMarketOhlcv, SMarketOhlcvHistory
 from src.common.utils.airflow.config import load_mysql_config
 from src.common.utils.db.db_partition import (
     existing_partition_names,
+    partition_date_from_name,
     partition_name,
     partition_upper_bound,
 )
@@ -48,32 +49,66 @@ def _snapshot_partition_dates(db: MySQLClient, conn: object) -> list[date]:
 
 
 def ensure_history_partitions(db: MySQLClient, conn: object, logger: object) -> list[str]:
-    """``s_market_ohlcv`` 행에 필요한 일별 RANGE 파티션을 추가한다."""
+    """``s_market_ohlcv`` 날짜별로 필요한 일별 RANGE 파티션 생성.
+
+    - 새 날짜가 기존 파티션들보다 뒤면 ``ADD PARTITION``으로 끝에 추가.
+    - 백필처럼 더 늦은 파티션이 이미 있으면 해당 파티션(상한이 그 날짜보다 큰 것 중 가장 작은 파티션)을
+      ``REORGANIZE``로 분할.
+    """
     table = SMarketOhlcvHistory.TABLE
     existing = existing_partition_names(db, conn, table)
+    existing_dates = {
+        parsed for parsed in (partition_date_from_name(n) for n in existing) if parsed is not None
+    }
     added: list[str] = []
     for partition_date in _snapshot_partition_dates(db, conn):
         name = partition_name(partition_date)
         if name in existing:
             continue
         upper = partition_upper_bound(partition_date)
-        db.execute(
-            f"""
-            ALTER TABLE {table}
-            ADD PARTITION (
-                PARTITION {name} VALUES LESS THAN ('{upper}')
+        if not existing_dates or partition_date > max(existing_dates):
+            db.execute(
+                f"""
+                ALTER TABLE {table}
+                ADD PARTITION (
+                    PARTITION {name} VALUES LESS THAN ('{upper}')
+                )
+                """,
+                conn=conn,
             )
-            """,
-            conn=conn,
-        )
+            logger.info(
+                "added partition name=%s partition_date=%s upper_bound=%s",
+                name,
+                partition_date,
+                upper,
+            )
+        else:
+            target_date = min(d for d in existing_dates if d > partition_date)
+            target_name = partition_name(target_date)
+            target_upper = partition_upper_bound(target_date)
+            db.execute(
+                f"""
+                ALTER TABLE {table}
+                REORGANIZE PARTITION {target_name} INTO (
+                    PARTITION {name} VALUES LESS THAN ('{upper}'),
+                    PARTITION {target_name} VALUES LESS THAN ('{target_upper}')
+                )
+                """,
+                conn=conn,
+            )
+            logger.info(
+                "reorganized partition target=%s into new=%s(<%s) existing=%s(<%s) "
+                "partition_date=%s",
+                target_name,
+                name,
+                upper,
+                target_name,
+                target_upper,
+                partition_date,
+            )
         existing.add(name)
+        existing_dates.add(partition_date)
         added.append(name)
-        logger.info(
-            "added partition name=%s partition_date=%s upper_bound=%s",
-            name,
-            partition_date,
-            upper,
-        )
     return added
 
 

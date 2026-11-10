@@ -17,6 +17,16 @@ def partition_upper_bound(partition_date: date) -> str:
     return (partition_date + timedelta(days=1)).strftime("%Y-%m-%d")
 
 
+def partition_date_from_name(name: str) -> date | None:
+    """파티션 이름(``p_YYYY_MM_DD``)에서 날짜를 역산한다. 형식이 아니면 ``None``."""
+    if not name.startswith("p_"):
+        return None
+    try:
+        return date.fromisoformat(name[2:].replace("_", "-"))
+    except ValueError:
+        return None
+
+
 def existing_partition_names(db: MySQLClient, conn: object, table: str) -> set[str]:
     """현재 스키마에서 ``table``의 PARTITION_NAME 집합을 반환한다."""
     rows = db.fetchall(
