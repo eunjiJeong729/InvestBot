@@ -62,6 +62,8 @@ s_market_ohlcv_history (MySQL, 이관 전까지 당일 보관)
 
 ## 🏷️ 4. 데이터 네이밍 컨벤션 (Naming Conventions)
 
+> MySQL 테이블 DDL은 `src/common/sql/ddl/`에 테이블당 한 파일로 둔다(여러 서비스가 함께 쓰는 테이블이라 서비스별 `sql/`이 아닌 common에 위치).
+
 > 아래 접두사/접미사 체계는 Kimball 방법론의 Dimension/Fact/Staging 개념을 참고하여, 본 프로젝트의 서비스 구조(마켓 데이터 수집·트레이딩·DW 이관)에 맞게 직접 설계했습니다.
 
 ### 1) 테이블 네이밍 규칙 (`[접두사]_[서비스명]_[본문]_[이력(선택)]`)

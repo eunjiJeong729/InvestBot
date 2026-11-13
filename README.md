@@ -56,7 +56,7 @@ Kiwoom API
 ├── docs/             # 설계 문서, 상세 DAG 명세 등
 ├── infra/            # HTTP, MySQL, S3 등 공통 인프라 클라이언트
 ├── src/
-│   ├── common/       # entity, config, logging, 공통 API client(Kiwoom 등) 유틸
+│   ├── common/       # entity, config, logging, 공통 API client(Kiwoom 등) 유틸, MySQL 테이블 DDL(sql/ddl/)
 │   ├── market/       # [완료] dag_market 및 fetch/insert task
 │   ├── trading/      # [진행중] dag_trading 및 분석기/주문 로직
 │   └── dw_migration/ # [완료] dag_dw_migration 소스 (DAG ID: dag_dw_migration)
@@ -131,13 +131,33 @@ cp .secrets/aws.example.json .secrets/dev/debug/aws.json
 | `broker.json` | Kiwoom API (`base_url`, `app_key`, `app_secret`, `account_no`) |
 | `aws.json` | AWS 접속 정보 (dev: moto용 더미 값 / prod: 버킷명) |
 
-### 3. Dev Container (권장)
+### 3. MySQL 테이블 준비
+
+DDL은 `src/common/sql/ddl/`에 테이블당 하나씩 있습니다. 순서대로 실행합니다(`d_market_calendar`,
+`d_market_asset_master`, `s_market_ohlcv`, `s_market_ohlcv_history` — `s_market_ohlcv_history`는
+초기 파티션(`p_init`)만 가지고 있고, 날짜별 파티션은 `dag_market` 실행 중에 자동으로 추가됩니다).
+
+```bash
+mysql -h <host> -P <port> -u <user> -p <database> < src/common/sql/ddl/d_market_calendar.sql
+mysql -h <host> -P <port> -u <user> -p <database> < src/common/sql/ddl/d_market_asset_master.sql
+mysql -h <host> -P <port> -u <user> -p <database> < src/common/sql/ddl/s_market_ohlcv.sql
+mysql -h <host> -P <port> -u <user> -p <database> < src/common/sql/ddl/s_market_ohlcv_history.sql
+```
+
+`d_market_calendar`는 테이블만 만들어지고 비어 있습니다. 거래일 캘린더를 채워야 `dag_market`/`dag_trading`의
+거래일 게이트가 정상 동작합니다.
+
+```bash
+python scripts/load_d_market_calendar.py --config configs/dev/debug.json
+```
+
+### 4. Dev Container (권장)
 
 VS Code / Cursor에서 **Reopen in Container**로 `.devcontainer/devcontainer.json` 환경을 엽니다.  
 포트 `8080`(Airflow UI)이 자동 포워딩됩니다. `docker-compose.devcontainer.yml`에 **moto_server**가 포함되어
 S3/Glue 로컬 목킹(`http://moto:5000`)이 기동됩니다.
 
-### 4. Docker Compose
+### 5. Docker Compose
 
 ```bash
 cp docker/.env.example .env
